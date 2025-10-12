@@ -16,7 +16,7 @@ class LoginController extends Controller
 
     public function __construct()
     {
-        $this->settings = Setting::query()->first();
+        $this->settings = Setting::getCache();
     }
 
     public function index(): View
@@ -30,7 +30,7 @@ class LoginController extends Controller
             return back()->with(['message' => __('This feature is disabled in Demo version.'), 'type' => 'error']);
         }
 
-        $settingTwo = SettingTwo::query()->first();
+        $settingTwo = SettingTwo::getCache();
         $settingTwo->update([
             'daily_limit_enabled'       => $request->has('daily_limit_enabled'),
             'daily_voice_limit_enabled' => $request->has('daily_voice_limit_enabled'),
@@ -51,12 +51,14 @@ class LoginController extends Controller
             'github_active'              => $request->has('github_active'),
         ]);
 
-        setting(
-            [
-                'freeCreditsUponRegistration'     => $request->get('entities'),
-            ]
-        )->save();
-
+        $optionalFieldIds = ['country', 'phone', 'name', 'surname'];
+        $settings = [
+            'freeCreditsUponRegistration' => $request->get('entities'),
+        ];
+        foreach ($optionalFieldIds as $field) {
+            $settings["registration_fields_{$field}"] = $request->has("registration_fields_{$field}") ? 1 : 0;
+        }
+        setting($settings)->save();
         Setting::forgetCache();
 
         return back()->with(['message' => 'Updated Successfully.', 'type' => 'success']);

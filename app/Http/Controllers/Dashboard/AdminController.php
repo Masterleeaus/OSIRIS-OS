@@ -484,7 +484,7 @@ class AdminController extends Controller
         ];
 
         if (array_key_exists($openAIGenerator->getAttribute('slug'), $data)) {
-            if ($setting = Setting::query()->first()) {
+            if ($setting = Setting::getCache()) {
                 $setting->update([
                     $data[$openAIGenerator->getAttribute('slug')] => $status,
                 ]);

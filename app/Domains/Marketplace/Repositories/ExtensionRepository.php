@@ -83,7 +83,7 @@ class ExtensionRepository implements ExtensionRepositoryInterface
     {
         $appVersion = $this->appVersion();
 
-        $response = $this->request('get', 'extension-support', [
+        $response = $this->request('get', 'extension-support/no-version', [
             'is_theme'    => false,
             'is_beta'     => true,
             'app_version' => $appVersion ?: 6.5,

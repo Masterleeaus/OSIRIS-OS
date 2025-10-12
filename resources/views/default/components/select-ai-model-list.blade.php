@@ -27,6 +27,12 @@
     }
 
     $fullModels = collect($fullModels)->unique('value')->values();
+    $activeModels = collect($fullModels)
+        ->filter(function ($model) {
+            $driver = \App\Domains\Entity\Facades\Entity::driver(EntityEnum::tryFrom($model?->value));
+            return $driver->isUnlimitedCredit() || $driver->creditBalance() > 0;
+        })
+        ->values();
     $defaultDriver = \App\Domains\Entity\Facades\Entity::driver(EntityEnum::tryFrom($defaultModel?->value));
     $selectedModel = $defaultDriver;
     if (!$defaultDriver->isUnlimitedCredit() && $defaultDriver->creditBalance() <= 0) {
@@ -187,42 +193,42 @@
                                         </div>
                                     </div>
 
-									@if ($isMultiModelExtensionEnabled)
-										<div
-											class="absolute bottom-3 end-3 inline-grid size-9 place-items-center rounded-full bg-secondary text-secondary-foreground shadow-lg shadow-black/5"
-											x-show="selectedModels.find(model => model.value === '{{ $model?->value }}') && {{ $is_inactive ? 'false' : 'true' }}"
-										>
-											<x-tabler-check class="size-5"/>
-										</div>
-									@endif
-								</x-card>
-							@endforeach
-						</div>
+                                    @if ($isMultiModelExtensionEnabled)
+                                        <div
+                                            class="absolute bottom-3 end-3 inline-grid size-9 place-items-center rounded-full bg-secondary text-secondary-foreground shadow-lg shadow-black/5"
+                                            x-show="selectedModels.find(model => model.value === '{{ $model?->value }}') && {{ $is_inactive ? 'false' : 'true' }}"
+                                        >
+                                            <x-tabler-check class="size-5" />
+                                        </div>
+                                    @endif
+                                </x-card>
+                            @endforeach
+                        </div>
 
-						<x-forms.input
-							id="chatbot_front_model"
-							container-class="hidden"
-							name="chatbot_front_model"
-							type="select"
-							:multiple="$isMultiModelExtensionEnabled"
-							x-ref="modelsSelectElement"
-							x-model="selectedModels.map(model => model.value)"
-						>
-							<option
-								data-label="{{ __('Default Model') }}"
-								value=""
-							>
-								{{ __('Default Model') }}
-							</option>
-							@foreach ($fullModels as $model)
-								<option
-									data-label="{{ $model?->label() ?? '' }}"
-									value="{{ $model?->value }}"
-								>
-									{{ $model?->label() }}
-								</option>
-							@endforeach
-						</x-forms.input>
+                        <x-forms.input
+                            id="chatbot_front_model"
+                            container-class="hidden"
+                            name="chatbot_front_model"
+                            type="select"
+                            :multiple="$isMultiModelExtensionEnabled"
+                            x-ref="modelsSelectElement"
+                            x-model="selectedModels.map(model => model.value)"
+                        >
+                            <option
+                                data-label="{{ __('Default Model') }}"
+                                value=""
+                            >
+                                {{ __('Default Model') }}
+                            </option>
+                            @foreach ($fullModels as $model)
+                                <option
+                                    data-label="{{ $model?->label() ?? '' }}"
+                                    value="{{ $model?->value }}"
+                                >
+                                    {{ $model?->label() }}
+                                </option>
+                            @endforeach
+                        </x-forms.input>
 
                         <x-button
                             class="sticky bottom-5 mt-10 w-full backdrop-blur-lg disabled:bg-heading-foreground/30 disabled:text-header-background"
@@ -246,6 +252,8 @@
                 Alpine.data('modelList', () => ({
                     selectedModelLabel: '',
                     selectedModels: [],
+                    fullModels: @json($fullModels),
+                    activeModels: @json($activeModels),
                     searchString: '',
                     localStorageKey: 'selectedChatModels',
 
@@ -254,65 +262,78 @@
                         const defaultModelLabel = '{{ $selectedModel->model()?->selected_title ?? $selectedModel->enum()?->value }}';
                         const localStorageLastSelectedModels = localStorage.getItem(this.localStorageKey) ??
                             `[{ "value": "${defaultModelValue}", "label": "${defaultModelLabel}" }]`;
+                        const models = JSON.parse(localStorageLastSelectedModels)
+                            .filter(model => this.fullModels.find(m => m === model.value))
+                            .filter(model => this.activeModels.find(m => m === model.value));
 
-						return JSON.parse(localStorageLastSelectedModels);
-					},
-					setLocalStorage() {
-						localStorage.setItem(this.localStorageKey, JSON.stringify(this.selectedModels));
-					},
-					updateSelectedModels(modelObj = {
-						value: null,
-						label: null
-					}) {
-						const existingSelectedModels = this.selectedModels;
-						@php
-							$canMultiSelect = $isMultiModelExtensionEnabled && (auth()?->user()?->activePlan()?->multi_model_support ?? false || auth()?->user()?->isAdmin());
-						@endphp
-						@if ($canMultiSelect)
-							const existingIndex = this.selectedModels.findIndex(model => model.value === modelObj.value);
-							if (existingIndex > -1) {
-								if (this.selectedModels.length > 1) {
-									this.selectedModels = this.selectedModels.filter((model, index) => index !== existingIndex);
-								}
-							} else if (this.selectedModels.length >= 2) {
-								toastr.error('{{ __('Selecting more than 2 models not allowed') }}');
-								this.selectedModels = existingSelectedModels;
-							} else {
-								this.selectedModels.push({
-									value: modelObj.value,
-									label: modelObj.label,
-								});
-							}
-						@else
-							@if ($isMultiModelExtensionEnabled)
-								document.querySelector('.tmp-alert').classList.remove('hidden');
-								setTimeout(() => {
-									document.querySelector('.tmp-alert').classList.add('hidden');
-								}, 3000);
-							@endif
-							this.selectedModels = [modelObj];
-						@endif
+                        @if ($isMultiModelExtensionEnabled)
+                            return models;
+                        @else
+                            return [models[0]];
+                        @endif
+                    },
+                    setLocalStorage() {
+                        localStorage.setItem(this.localStorageKey, JSON.stringify(this.selectedModels));
+                    },
+                    updateSelectedModels(modelObj = {
+                        value: null,
+                        label: null
+                    }) {
+                        const existingSelectedModels = this.selectedModels;
+                        @php
+                            $canMultiSelect = $isMultiModelExtensionEnabled && (auth()?->user()?->activePlan()?->multi_model_support ?? false || auth()?->user()?->isAdmin());
+                        @endphp
+                        @if ($canMultiSelect)
+                            const existingIndex = this.selectedModels.findIndex(model => model.value === modelObj.value);
+                            if (existingIndex > -1) {
+                                if (this.selectedModels.length > 1) {
+                                    this.selectedModels = this.selectedModels.filter((model, index) => index !== existingIndex);
+                                }
+                            } else if (this.selectedModels.length >= 2) {
+                                toastr.error('{{ __('Selecting more than 2 models not allowed') }}');
+                                this.selectedModels = existingSelectedModels;
+                            } else {
+                                this.selectedModels.push({
+                                    value: modelObj.value,
+                                    label: modelObj.label,
+                                });
+                            }
+                        @else
+                            @if ($isMultiModelExtensionEnabled)
+                                document.querySelector('.tmp-alert').classList.remove('hidden');
+                                setTimeout(() => {
+                                    document.querySelector('.tmp-alert').classList.add('hidden');
+                                }, 3000);
+                            @endif
+                            this.selectedModels = [modelObj];
+                        @endif
 
                         this.updateSelectionLabel();
                         this.setLocalStorage();
                     },
                     updateSelectionLabel() {
-                        if (this.selectedModels.length === 0) {
-                            this.selectedModelLabel = '{{ __('None') }}';
-                        } else if (this.selectedModels.length === 1) {
-                            this.selectedModelLabel = this.selectedModels[0].label;
-                        } else {
-                            this.selectedModelLabel = this.selectedModels.length + ' {{ __('models selected') }}';
-                        }
+                        @if ($isMultiModelExtensionEnabled)
+                            if (this.selectedModels.length === 0) {
+                                this.selectedModelLabel = '{{ __('None') }}';
+                            } else if (this.selectedModels.length === 1) {
+                                this.selectedModelLabel = this.selectedModels[0].label;
+                            } else {
+                                this.selectedModelLabel = this.selectedModels.length + ' {{ __('models selected') }}';
+                            }
+                        @else
+                            this.selectedModelLabel = this.selectedModels[0]?.label ?? '{{ __('None') }}';
+                        @endif
                     },
                     saveChanges() {
-                        this.updateSelectionLabel();
                         this.setLocalStorage();
+                        this.updateSelectionLabel();
                     },
                     init() {
                         const localStorageLastSelectedModels = this.getLocalStorage();
 
                         this.selectedModels = localStorageLastSelectedModels;
+                        // set local storage again on init to make sure we're in sync with available and active models
+                        this.setLocalStorage();
                         this.updateSelectionLabel();
 
                         document.addEventListener('chat-model-change', event => {

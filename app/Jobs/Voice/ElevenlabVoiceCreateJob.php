@@ -27,7 +27,7 @@ class ElevenlabVoiceCreateJob implements ShouldQueue
     {
         $elevenlabVoice = ElevenlabVoice::query()->find($this->eloquentId);
 
-        $setting = SettingTwo::query()->first();
+        $setting = SettingTwo::getCache();
 
         try {
             $ch = curl_init();

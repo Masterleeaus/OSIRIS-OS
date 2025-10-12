@@ -45,13 +45,9 @@
 		}
 	],
 	"require": {
-		"php": "^8.3",
+		"php": "^8.2",
 		"ext-curl": "*",
 		"ext-zip": "*",
-		"ext-json": "*",
-		"ext-openssl": "*",
-		"ext-mbstring": "*",
-		"ext-pdo": "*",
 		"ably/ably-php": "^1.1",
 		"abraham/twitteroauth": "^7.0",
 		"akaunting/laravel-setting": "^1.2",
@@ -79,6 +75,7 @@
 		"intervention/image": "^3.5",
 		"irazasyed/telegram-bot-sdk": "^3.15",
 		"iyzico/iyzipay-php": "^2.0",
+		"james-heinrich/getid3": "^1.9",
 		"laravel/cashier": "14.14.0",
 		"laravel/framework": "^10.0",
 		"laravel/octane": "^2.8",
@@ -132,7 +129,6 @@
 		"laravel/breeze": "^1.19",
 		"laravel/pint": "^1.17",
 		"laravel/sail": "^1.18",
-		"laravel/telescope": "^5.2",
 		"mockery/mockery": "^1.4.4",
 		"nunomaduro/collision": "^7.0",
 		"pestphp/pest": "^2.35",
@@ -189,19 +185,12 @@
 	},
 	"config": {
 		"optimize-autoloader": true,
+		"preferred-install": "dist",
 		"sort-packages": true,
 		"allow-plugins": {
 			"pestphp/pest-plugin": true,
-			"php-http/discovery": true,
-			"php-http/guzzle7-adapter": true,
-			"php-http/message": true
-		},
-		"platform-check": true,
-		"preferred-install": {
-			"*": "dist"
-		},
-		"process-timeout": 3600,
-		"secure-http": true
+			"php-http/discovery": true
+		}
 	},
 	"minimum-stability": "stable",
 	"prefer-stable": true

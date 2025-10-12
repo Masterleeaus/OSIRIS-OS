@@ -17,7 +17,7 @@ class BrandingController extends Controller
 
     public function __construct()
     {
-        $this->settings = Setting::query()->first();
+        $this->settings = Setting::getCache();
     }
 
     private function getFileInfo($filePath): array

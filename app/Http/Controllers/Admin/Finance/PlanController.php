@@ -23,7 +23,7 @@ class PlanController extends Controller
     {
         return view('panel.admin.finance.plan.index', [
             'gatewayError' => false,
-            'setting'      => Setting::query()->first(),
+            'setting'      => Setting::getCache(),
             'plans'        => Plan::query()->orderByDesc('updated_at')
                 ->select(['id', 'name', 'type', 'frequency', 'active', 'updated_at', 'price'])
                 ->get(),

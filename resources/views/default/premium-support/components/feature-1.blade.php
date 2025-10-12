@@ -25,17 +25,48 @@
 			</div>
 			<div class="relative mx-auto w-full overflow-hidden rounded-lg">
 				<video
-					class="w-full object-cover [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_90%,transparent)]"
+					class="lazy-video w-full object-cover [mask-image:linear-gradient(to_bottom,transparent,black_10%,black_90%,transparent)]"
 					autoplay
 					loop
 					muted
 					playsinline
+					preload="metadata"
+					poster="{{ asset('upload/videos/mobile-poster.jpg') }}"
 				>
-					<source src="{{ asset('upload/videos/mobile.mp4') }}" type="video/mp4">
+					<source data-src="{{ asset('upload/videos/mobile.mp4') }}" type="video/mp4">
 					Your browser does not support the video tag.
 				</video>
 			</div>
 
+			<script>
+				document.addEventListener("DOMContentLoaded", () => {
+					const lazyVideos = document.querySelectorAll("video.lazy-video");
+
+					const videoObserver = new IntersectionObserver((entries, observer) => {
+						entries.forEach(entry => {
+							if (entry.isIntersecting) {
+								const video = entry.target;
+								const source = video.querySelector("source");
+
+								// Load only once
+								if (source && source.dataset.src) {
+									source.src = source.dataset.src;
+									source.removeAttribute("data-src");
+
+									video.load();
+									video.play().catch(() => {}); // play silently if autoplay fails
+								}
+
+								observer.unobserve(video);
+							}
+						});
+					});
+
+					lazyVideos.forEach(video => {
+						videoObserver.observe(video);
+					});
+				});
+			</script>
 		</div>
 		<div class="flex flex-wrap items-center justify-between gap-y-8">
 			<div class="w-full lg:w-1/2 lg:text-center">

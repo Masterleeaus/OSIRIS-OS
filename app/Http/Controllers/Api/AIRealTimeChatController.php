@@ -919,7 +919,7 @@ class AIRealTimeChatController extends Controller
      */
     public function openAIFavoritesList(Request $request): JsonResponse
     {
-        $favoriteOpenai = $request->user()->favoriteOpenai()->latest('created_at')->take(6)->get();
+        $favoriteOpenai = $request->user()?->favoriteOpenai()?->latest('created_at')->take(6)->get();
 
         return response()->json($favoriteOpenai, 200);
     }

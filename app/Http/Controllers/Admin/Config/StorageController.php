@@ -16,7 +16,7 @@ class StorageController extends Controller
 
     public function __construct()
     {
-        $this->settingTwo = SettingTwo::query()->first();
+        $this->settingTwo = SettingTwo::getCache();
     }
 
     public function index(): View

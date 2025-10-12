@@ -107,11 +107,11 @@
         #lqd-ext-chatbot-wrap .lqd-ext-chatbot-trigger-mobile {
             display: inline-grid;
 			place-items: center;
-			width: 28px;
-			height: 28px;
+			width: 24px;
+			height: 24px;
 			position: fixed;
-			top: 15px;
-			inset-inline-end: 24px;
+			top: 17px;
+			inset-inline-end: 16px;
 			z-index: 999991;
 			visibility: hidden;
 			opacity: 0;
@@ -368,7 +368,7 @@
         class="lqd-ext-chatbot-trigger lqd-ext-chatbot-trigger-mobile"
         type="button"
     >
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" > <path d="M18 6l-12 12" /> <path d="M6 6l12 12" /> </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" > <path d="M18 6l-12 12" /> <path d="M6 6l12 12" /> </svg>
     </button>
 </div>`;
 

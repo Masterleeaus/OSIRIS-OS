@@ -103,7 +103,7 @@ class MenuService
     public function generate(bool $active = true): array
     {
 
-        $data = cache()->rememberForever(self::MENU_KEY . time(), function () use ($active) {
+        $data = cache()->rememberForever(self::MENU_KEY, function () use ($active) {
             $items = Menu::query()
                 ->with('children')
                 ->withCount('children')
@@ -204,8 +204,8 @@ class MenuService
     {
         $admin = Auth::user()?->isAdmin();
 
-        $setting = Setting::query()->first();
-        $settings_two = SettingTwo::query()->first();
+        $setting = Setting::getCache();
+        $settings_two = SettingTwo::getCache();
 
         $menu = [
 
@@ -1279,6 +1279,24 @@ class MenuService
                 'extension'        => true,
                 'active_condition' => null,
                 'show_condition'   => Route::has('dashboard.user.ai-music.index'),
+            ],
+            'ext_ai_music_pro' => [
+                'parent_key'       => null,
+                'key'              => 'ext_ai_music_pro',
+                'route'            => 'dashboard.user.ai-music-pro.index',
+                'route_slug'       => null,
+                'label'            => 'AI Music Pro',
+                'data-name'        => Introduction::AI_MUSIC_PRO,
+                'icon'             => 'tabler-music',
+                'svg'              => null,
+                'order'            => 20,
+                'is_active'        => true,
+                'params'           => [],
+                'type'             => 'item',
+                'extension'        => true,
+                'active_condition' => null,
+                'show_condition'   => MarketplaceHelper::isRegistered('ai-music-pro'),
+                'badge'            => 'new',
             ],
             'ai_product_shot' => [
                 'parent_key'       => null,
@@ -3793,7 +3811,7 @@ class MenuService
             'ai_product_shot', 'ai_writer', 'ai_chat_all', 'ai_image_generator', 'ai_video', 'seo_tool_extension', 'ai_voiceover',
             'ai_pdf', 'ai_vision', 'ai_speech_to_text', 'photo_studio_extension', 'ai_rewriter', 'ai_editor',
             'ai_code_generator', 'ai_youtube', 'ai_chat_image', 'ai_rss', 'ai_voiceover_clone', 'ai_web_chat_extension',
-            'ai_realtime_voice_chat', 'ai_social_media_extension', 'ai_detector_extension', 'ai_plagiarism_extension', 'ai_article_wizard', 'ai_voice_isolator', 'ext_chat_bot', 'ext_voice_chatbot',
+            'ai_realtime_voice_chat', 'ai_social_media_extension', 'ai_detector_extension', 'ai_plagiarism_extension', 'ai_article_wizard', 'ai_voice_isolator', 'ext_chat_bot', 'ext_voice_chatbot', 'ext_social_media_dropdown',
         ];
 
         $data = (new self)->generate();

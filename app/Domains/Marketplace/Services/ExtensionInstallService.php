@@ -3,6 +3,7 @@
 namespace App\Domains\Marketplace\Services;
 
 use App\Domains\Marketplace\Repositories\Contracts\ExtensionRepositoryInterface;
+use App\Helpers\Classes\VersionComparator;
 use App\Models\Gateways;
 use App\Services\Extension\ExtensionService;
 use Database\Seeders\MenuSeeder;
@@ -41,6 +42,15 @@ class ExtensionInstallService
         }
 
         $responseExtension = $this->repository->findSupport($extension->getAttribute('slug'));
+
+        $appVersion = $this->repository->appVersion();
+
+        if (isset($responseExtension['min_app_version']) && VersionComparator::compareVersion($appVersion, $responseExtension['min_app_version'], '<')) {
+            return [
+                'status'  => false,
+                'message' => trans('To download the extension, your app version must be at least ' . $responseExtension['min_app_version'] . '. Please update your system first.'),
+            ];
+        }
 
         $extensionFolderName = $responseExtension['extension_folder'];
 

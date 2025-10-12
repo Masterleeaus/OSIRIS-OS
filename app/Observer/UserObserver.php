@@ -28,7 +28,7 @@ class UserObserver
             }
         }
 
-        if ((int) setting('hubspot_crm_contact_register') === 1) {
+        if (MarketplaceHelper::isRegistered('hubspot') && (((int) setting('hubspot_crm_contact_register', '0')) === 1)) {
             try {
                 (new \App\Extensions\Hubspot\System\Services\HubspotService)->createCrmContacts($user->email, $user->name, $user->surname);
             } catch (Exception $e) {

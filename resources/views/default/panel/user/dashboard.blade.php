@@ -1,5 +1,5 @@
 @php
-	$userId = auth()->id();
+    $userId = auth()->id();
     $plan = Auth::user()->activePlan();
     $plan_type = 'regular';
     // $team = Auth::user()->getAttribute('team');
@@ -380,8 +380,7 @@
                             </x-button>
                         @endif
                     </form>
-
-				@else
+                @else
                     <h3 class="mb-6">
                         {{ __('How it Works') }}
                     </h3>
@@ -693,7 +692,7 @@
                 data-view-mode="grid"
             >
                 <div class="lqd-docs-list grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5 lg:max-xl:grid-cols-3">
-                    @foreach ($favoriteOpenAis as $entry)
+                    @foreach ($favoriteOpenAis ?? [] as $entry)
                         @php
                             $upgrade = false;
                             if ($entry->premium == 1 && $plan_type === 'regular') {

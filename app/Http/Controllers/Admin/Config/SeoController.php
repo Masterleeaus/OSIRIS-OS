@@ -19,8 +19,8 @@ class SeoController extends Controller
 
     public function __construct()
     {
-        $this->settings = Setting::query()->first();
-        $this->settingTwo = SettingTwo::query()->first();
+        $this->settings = Setting::getCache();
+        $this->settingTwo = SettingTwo::getCache();
     }
 
     public function index(): View

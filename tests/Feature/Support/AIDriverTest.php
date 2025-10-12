@@ -6,6 +6,8 @@ use App\Domains\Engine\Enums\EngineEnum;
 use App\Domains\Entity\Contracts\Calculate\WithCharsInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImagesInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImageToVideoInterface;
+use App\Domains\Entity\Contracts\Calculate\WithMinuteInterface;
+use App\Domains\Entity\Contracts\Calculate\WithSecondInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToSpeechInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToVideoInterface;
 use App\Domains\Entity\Contracts\Calculate\WithVideoToVideoInterface;
@@ -74,6 +76,8 @@ test('calculate credit with input for all models', function ($model) {
         $driver instanceof WithTextToVideoInterface  => $driver->inputVideoCount(2),
         $driver instanceof WithTextToSpeechInterface => $driver->inputVoiceCount(2),
         $driver instanceof WithCharsInterface        => $driver->input('fo'),
+        $driver instanceof WithMinuteInterface       => $driver->inputMinute(2),
+        $driver instanceof WithSecondInterface       => $driver->inputSecond(2),
         default                                      => $driver->input('foo bar'),
     };
 

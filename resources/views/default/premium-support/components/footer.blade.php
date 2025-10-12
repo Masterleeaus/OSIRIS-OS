@@ -30,6 +30,8 @@
                     height="29"
                     src="{{ custom_theme_url('/assets/img/misc/elite-author.png') }}"
                     alt="{{ __('Power Elite Author') }}"
+					loading="lazy"
+					decoding="async"
                 >
             </div>
         </div>

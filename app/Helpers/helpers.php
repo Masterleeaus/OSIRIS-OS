@@ -12,6 +12,7 @@ use App\Models\PaymentProof;
 use App\Models\Plan;
 use App\Models\PrivacyTerms;
 use App\Models\UserOrder;
+use App\Services\Chatbot\ParserExcelService;
 use Datlechin\GoogleTranslate\Facades\GoogleTranslate;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -1480,6 +1481,96 @@ function showTeamFunctionality(): bool
     return Helper::setting('team_functionality') && ! auth()?->user()?->getAttribute('team_id') && $plan;
 }
 
+if (! function_exists('mimeToExtension')) {
+    function mimeToExtension(string $mimeType): string
+    {
+        static $mimeMap = [
+            // Microsoft Office
+            'application/msword'                                                        => 'doc',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'   => 'docx',
+            'application/vnd.ms-excel'                                                  => 'xls',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'         => 'xlsx',
+            'application/vnd.ms-powerpoint'                                             => 'ppt',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation' => 'pptx',
+
+            // Documents
+            'application/pdf'  => 'pdf',
+            'text/plain'       => 'txt',
+            'text/csv'         => 'csv',
+            'text/html'        => 'html',
+            'text/css'         => 'css',
+            'text/javascript'  => 'js',
+            'application/json' => 'json',
+            'application/xml'  => 'xml',
+            'text/xml'         => 'xml',
+            'application/rtf'  => 'rtf',
+
+            // Images
+            'image/jpeg'    => 'jpg',
+            'image/png'     => 'png',
+            'image/gif'     => 'gif',
+            'image/webp'    => 'webp',
+            'image/svg+xml' => 'svg',
+            'image/bmp'     => 'bmp',
+            'image/tiff'    => 'tiff',
+            'image/ico'     => 'ico',
+
+            // Audio
+            'audio/mpeg' => 'mp3',
+            'audio/wav'  => 'wav',
+            'audio/ogg'  => 'ogg',
+            'audio/mp4'  => 'm4a',
+            'audio/aac'  => 'aac',
+
+            // Video
+            'video/mp4'       => 'mp4',
+            'video/mpeg'      => 'mpeg',
+            'video/quicktime' => 'mov',
+            'video/x-msvideo' => 'avi',
+            'video/webm'      => 'webm',
+
+            // Archives
+            'application/zip'              => 'zip',
+            'application/x-rar-compressed' => 'rar',
+            'application/x-tar'            => 'tar',
+            'application/gzip'             => 'gz',
+            'application/x-7z-compressed'  => '7z',
+
+            // Programming
+            'text/x-php'         => 'php',
+            'text/x-python'      => 'py',
+            'text/x-java-source' => 'java',
+            'text/x-c'           => 'c',
+            'text/x-c++src'      => 'cpp',
+            'text/x-csharp'      => 'cs',
+
+            // Other
+            'application/octet-stream' => 'bin',
+        ];
+
+        // First check our mapping
+        if (isset($mimeMap[$mimeType])) {
+            return $mimeMap[$mimeType];
+        }
+
+        // Fallback: extract extension from MIME type
+        $parts = explode('/', $mimeType);
+        if (count($parts) >= 2) {
+            $subtype = $parts[1];
+            // Handle special cases in subtype
+            $subtype = str_replace([
+                'vnd.ms-',
+                'vnd.openxmlformats-officedocument.',
+                'x-',
+            ], '', $subtype);
+
+            return $subtype;
+        }
+
+        return 'bin';
+    }
+}
+
 function generateRandomWords($wordCount): string
 {
     $words = [];
@@ -1542,6 +1633,11 @@ if (! function_exists('getSocialMediaIcon')) {
             case 'x':
                 $image =
                     '<svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" xmlns="http://www.w3.org/2000/svg"> <path d="M10.7124 7.62177L17.4133 0H15.8254L10.0071 6.61788L5.35992 0H0L7.02738 10.0074L0 18H1.58799L7.73237 11.0113L12.6401 18H18L10.7121 7.62177H10.7124ZM8.53747 10.0956L7.82546 9.09906L2.16017 1.16971H4.59922L9.17118 7.56895L9.8832 8.56546L15.8262 16.8835H13.3871L8.53747 10.096V10.0956Z"/> </svg>';
+
+                break;
+            case 'tiktok':
+                $image =
+                    '<svg width="18" height="18" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="96" height="96" rx="21" fill="black" style="fill:black;fill-opacity:1;"/><path d="M73.31 25.7456C72.785 25.4743 72.274 25.1769 71.7788 24.8545C70.3389 23.9025 69.0186 22.7808 67.8465 21.5135C64.9139 18.158 63.8186 14.7538 63.4151 12.3705H63.4313C63.0943 10.3921 63.2337 9.11214 63.2547 9.11214H49.8974V60.7624C49.8974 61.4558 49.8974 62.1412 49.8682 62.8185C49.8682 62.9027 49.8601 62.9805 49.8553 63.0712C49.8553 63.1085 49.8553 63.1474 49.8472 63.1863C49.8472 63.196 49.8472 63.2057 49.8472 63.2154C49.7064 65.0686 49.1123 66.8588 48.1173 68.4286C47.1222 69.9983 45.7566 71.2994 44.1407 72.2175C42.4565 73.1757 40.5517 73.6782 38.614 73.6757C32.3906 73.6757 27.3468 68.6011 27.3468 62.334C27.3468 56.0669 32.3906 50.9923 38.614 50.9923C39.7921 50.9912 40.9629 51.1766 42.083 51.5415L42.0992 37.9412C38.6989 37.502 35.2444 37.7722 31.9538 38.7348C28.6631 39.6975 25.6077 41.3317 22.9802 43.5343C20.678 45.5346 18.7425 47.9214 17.2608 50.5872C16.6969 51.5594 14.5695 55.4658 14.3119 61.8058C14.1499 65.4044 15.2306 69.1326 15.7458 70.6734V70.7058C16.0699 71.6132 17.3256 74.7094 19.372 77.3197C21.0221 79.4135 22.9716 81.2527 25.1579 82.7783V82.7459L25.1903 82.7783C31.6567 87.1724 38.8263 86.884 38.8263 86.884C40.0674 86.8338 44.2249 86.884 48.9463 84.6464C54.183 82.1658 57.1642 78.47 57.1642 78.47C59.0688 76.2618 60.5832 73.7452 61.6426 71.0282C62.8513 67.8509 63.2547 64.0401 63.2547 62.5171V35.1155C63.4168 35.2127 65.5749 36.6401 65.5749 36.6401C65.5749 36.6401 68.6842 38.633 73.5352 39.9309C77.0155 40.8544 81.7045 41.0488 81.7045 41.0488V27.7887C80.0615 27.9669 76.7255 27.4485 73.31 25.7456Z" fill="white" style="fill:white;fill-opacity:1;"/></svg>';
 
                 break;
             case 'linkedin':
@@ -1686,6 +1782,95 @@ if (! function_exists('isFileSecure')) {
         return true;
     }
 
+    if (! function_exists('processFileContent')) {
+        function processFileContent(string $extension, string $tempFileName): string
+        {
+            $tempPath = public_path("uploads/$tempFileName");
+
+            switch ($extension) {
+                case 'pdf':
+                    $parser = new \Smalot\PdfParser\Parser;
+                    $text = $parser->parseFile($tempPath)->getText();
+
+                    return mb_check_encoding($text, 'UTF-8') ? $text : mb_convert_encoding($text, 'UTF-8', mb_detect_encoding($text));
+
+                case 'docx':
+                    return docxToText($tempPath);
+
+                case 'doc':
+                    return docToText($tempPath);
+
+                case 'csv':
+                    $file = file_get_contents($tempPath);
+                    $rows = explode(PHP_EOL, $file);
+                    $header = str_getcsv(array_shift($rows));
+                    $dataAsJson = [];
+                    foreach ($rows as $row) {
+                        if (trim($row)) {
+                            $data = array_combine($header, array_pad(str_getcsv($row), count($header), ''));
+                            $dataAsJson[] = json_encode($data, JSON_THROW_ON_ERROR);
+                        }
+                    }
+
+                    return implode("\n", $dataAsJson);
+
+                case 'xls':
+                case 'xlsx':
+                    $parser = app(ParserExcelService::class);
+
+                    return $parser->setPath($tempPath)->parse();
+
+                default:
+                    throw new RuntimeException('Unsupported file type');
+            }
+        }
+    }
+
+    if (! function_exists('docToText')) {
+        function docToText($path_to_file): array|string|null
+        {
+            $fileHandle = fopen($path_to_file, 'rb');
+            $line = @fread($fileHandle, filesize($path_to_file));
+            $lines = explode(chr(0x0D), $line);
+            $response = '';
+            foreach ($lines as $current_line) {
+                $pos = strpos($current_line, chr(0x00));
+                if (($pos !== false) || ($current_line === '')) {
+                    $response .= "\n";
+                } else {
+                    $response .= $current_line . ' ';
+                }
+            }
+
+            return preg_replace('/[^a-zA-Z0-9\s\,\.\-\n\r\t@\/\_\(\)]/', '', $response);
+        }
+    }
+
+    if (! function_exists('docxToText')) {
+        function docxToText($path_to_file): bool|string
+        {
+            $response = '';
+            $zip = new ZipArchive;
+            if (! $zip->open($path_to_file)) {
+                return false;
+            }
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entry = $zip->statIndex($i);
+                if ($entry['name'] !== 'word/document.xml') {
+                    continue;
+                }
+                $content = $zip->getFromIndex($i);
+
+                $content = str_replace(['</w:r></w:p></w:tc><w:tc>', '</w:r></w:p>'], ["\r\n", "\n"], $content ?? '');
+                $content = strip_tags($content);
+                $response .= $content;
+            }
+            $zip->close();
+
+            return $response;
+        }
+    }
+
     if (! function_exists('validateUploadedFile')) {
         function validateUploadedFile(string $filePath, string $extension): bool
         {
@@ -1720,6 +1905,24 @@ if (! function_exists('isFileSecure')) {
             }
 
             return true;
+        }
+    }
+}
+
+if (! function_exists('measureVoiceLength')) {
+    function measureVoiceLength($filePath): ?float
+    {
+        try {
+            $getID3 = new getID3;
+            $fileInfo = $getID3->analyze($filePath);
+
+            if (isset($fileInfo['playtime_seconds'])) {
+                return round($fileInfo['playtime_seconds'] / 60, 2);
+            }
+
+            return 1;
+        } catch (Throwable $e) {
+            return 1;
         }
     }
 }

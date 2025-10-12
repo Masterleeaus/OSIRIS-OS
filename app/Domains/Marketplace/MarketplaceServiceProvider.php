@@ -94,6 +94,9 @@ class MarketplaceServiceProvider extends ServiceProvider
         'demo-extension'         => \App\Extensions\DemoExtension\System\DemoExtensionServiceProvider::class,
         'multi-model'            => \App\Extensions\MultiModel\System\MultiModelServiceProvider::class,
         'nano-banana'            => \App\Extensions\NanoBanana\System\NanoBananaServiceProvider::class,
+        'ai-chat-pro-file-chat'  => \App\Extensions\AIChatProFileChat\System\AIChatProFileChatServiceProvider::class,
+        'ai-music-pro'           => \App\Extensions\AiMusicPro\System\AiMusicProServiceProvider::class,
+        'see-dream-v4'           => \App\Extensions\SeeDreamV4\System\SeeDreamV4ServiceProvider::class,
     ];
 
     public function register(): void

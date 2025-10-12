@@ -111,7 +111,7 @@ class FluxProQueueCheck extends Command
                 $filename .= '.' . $extension;
             }
 
-            $image_storage = SettingTwo::query()->first()?->ai_image_storage;
+            $image_storage = SettingTwo::getCache()?->ai_image_storage;
 
             if ($image_storage === 'r2') {
                 Storage::disk('r2')->put($filename, $fileContent);

@@ -53,6 +53,11 @@ class CheckTemplateTypeAndPlan
             'dashboard.user.automation.index'            => 'ai_social_media_extension',
             'dashboard.user.automation.list'             => 'ai_social_media_extension',
             'dashboard.chatbot.index'                    => 'ext_chat_bot',
+            'dashboard.user.social-media.index'          => 'ext_social_media_dropdown',
+            'dashboard.user.social-media.campaign.index' => 'ext_social_media_dropdown',
+            'dashboard.user.social-media.platforms'      => 'ext_social_media_dropdown',
+            'dashboard.user.social-media.post.index'     => 'ext_social_media_dropdown',
+            'dashboard.user.social-media.calendar'       => 'ext_social_media_dropdown',
         ];
         if (array_key_exists($request->route()?->getName(), $routesDoesNotHaveAnySlug)) {
             $slug = $routesDoesNotHaveAnySlug[$request->route()?->getName()];

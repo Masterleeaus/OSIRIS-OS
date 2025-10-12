@@ -15,7 +15,7 @@ class FinanceController extends Controller
 
     public function __construct()
     {
-        $this->settings = Setting::query()->first();
+        $this->settings = Setting::getCache();
     }
 
     public function index(): View

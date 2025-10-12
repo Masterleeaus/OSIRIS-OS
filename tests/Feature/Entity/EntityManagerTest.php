@@ -6,7 +6,9 @@ use App\Domains\Engine\Enums\EngineEnum;
 use App\Domains\Entity\Contracts\Calculate\WithCharsInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImagesInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImageToVideoInterface;
+use App\Domains\Entity\Contracts\Calculate\WithMinuteInterface;
 use App\Domains\Entity\Contracts\Calculate\WithPlagiarismInterface;
+use App\Domains\Entity\Contracts\Calculate\WithSecondInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSpeechToTextInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToSpeechInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToVideoInterface;
@@ -75,6 +77,8 @@ test('total default models credits for current user', function ($increase, $type
     expect($stats->totalCredits())->toBe(mockDefaultModelsCount($type) * 1.5);
 })->with('bool')->with([
     WithCharsInterface::class,
+    WithMinuteInterface::class,
+    WithSecondInterface::class,
     WithImagesInterface::class,
     WithImageToVideoInterface::class,
     WithWordsInterface::class,

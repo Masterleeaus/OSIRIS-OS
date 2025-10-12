@@ -154,6 +154,8 @@
                         alt="{{ __('marketplace') }}"
                         width="857"
                         height="470"
+						loading="lazy"
+						decoding="async"
                         src="{{ custom_theme_url('/assets/img/misc/dash-marketplace-announce.png') }}"
                     >
                 </figure>

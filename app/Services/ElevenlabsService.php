@@ -14,7 +14,7 @@ class ElevenlabsService
 
     public function __construct()
     {
-        $this->apiKey = SettingTwo::query()->first()?->elevenlabs_api_key;
+        $this->apiKey = SettingTwo::getCache()?->elevenlabs_api_key;
     }
 
     public function getVoices(): array|Collection

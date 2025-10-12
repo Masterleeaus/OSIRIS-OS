@@ -45,9 +45,29 @@
 <script src="{{ custom_theme_url('/assets/js/panel/openai_chat.js?v=' . time()) }}"></script>
 
 @if (count($list) == 0 && $category->slug != 'ai_pdf')
+	@php
+		$template = null;
+		$currentUrl = url()->current();
+		$currentPath = trim(parse_url($currentUrl, PHP_URL_PATH) ?: '');
+		if (
+			\App\Helpers\Classes\MarketplaceHelper::isRegistered('ai-chat-pro') &&
+			(
+				str_starts_with($currentPath, '/chat') ||
+				str_starts_with($currentPath, '/dashboard/user/openai/chat/pro/') ||
+				! auth()->check()
+			)
+		)
+		{
+			$template = 'chatpro';
+		}
+	@endphp
     <script>
         window.addEventListener("load", (event) => {
-            return startNewChat({{ $category->id }}, '{{ LaravelLocalization::getCurrentLocale() }}', '{{ auth()->check() ? null : 'chatpro' }}');
+            return startNewChat(
+				{{ $category->id }},
+				'{{ LaravelLocalization::getCurrentLocale() }}',
+				'{{ $template }}'
+			);
         });
     </script>
 @endif
