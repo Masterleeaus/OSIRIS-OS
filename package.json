@@ -30,7 +30,7 @@
 		"postcss": "^8.4.45",
 		"pusher-js": "^8.4.0-rc2",
 		"sass": "^1.93.2",
-		"tailwindcss": "^4.1.15",
+		"tailwindcss": "^4.1.16",
 		"tailwindcss-motion": "^1.1.1",
 		"vite": "^7.1.11",
 		"vite-plugin-mkcert": "^1.17.8"
@@ -43,7 +43,7 @@
 		"@imacrayon/alpine-ajax": "^0.12.4",
 		"@microsoft/fetch-event-source": "^2.0.1",
 		"@tiptap/core": "^3.2.0",
-		"@tiptap/extension-bubble-menu": "^3.7.2",
+		"@tiptap/extension-bubble-menu": "^3.8.0",
 		"@tiptap/extension-code": "^3.7.2",
 		"@tiptap/extension-code-block-lowlight": "^3.8.0",
 		"@tiptap/extension-floating-menu": "^3.2.0",
