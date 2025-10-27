@@ -45,18 +45,14 @@ return new class extends Migration
                     $remainingImages = (int) $user->remaining_images;
 
                     if ($remainingWords === -1) {
-                        EntityStats::word()->forUser($user)->list()->each(function ($entity) {
-                            $entity->setUnlimited();
-                        });
+                        EntityStats::word()->forUser($user)->list()->each(fn($entity) => $entity->setUnlimited());
                     } else {
                         $driver = Entity::driver($defaultWordModel)->forUser($user);
                         $driver->setCredit($remainingWords);
                     }
 
                     if ($remainingImages === -1) {
-                        EntityStats::image()->forUser($user)->list()->each(function ($entity) {
-                            $entity->setUnlimited();
-                        });
+                        EntityStats::image()->forUser($user)->list()->each(fn($entity) => $entity->setUnlimited());
                     } elseif ($defaultImageModels) {
                         $defaultImageModelCount = count($defaultImageModels);
                         foreach ($defaultImageModels as $model) {
@@ -68,17 +64,15 @@ return new class extends Migration
             });
 
         if ($defaultWordModel === EntityEnum::GPT_4_O) {
-            Setting::query()
-                ->updateOrCreate([
-                    'openai_default_model' => EntityEnum::GPT_4_O,
-                ]);
+            Setting::query()->updateOrCreate([
+                'openai_default_model' => EntityEnum::GPT_4_O,
+            ]);
         }
     }
 
     private function migratePlans(): void
     {
         $plans = Plan::get();
-
         foreach ($plans as $plan) {
             $this->updatePlan($plan);
         }
@@ -104,29 +98,22 @@ return new class extends Migration
         $flattened = [];
         foreach (Plan::openAiGeneratorsValues() as $items) {
             foreach ($items as $item) {
-                if (in_array($item['slug'], $allFeatures, true)) {
-                    $flattened[$item['slug']] = true;
-                } else {
-                    $flattened[$item['slug']] = false;
-                }
+                $flattened[$item['slug']] = in_array($item['slug'], $allFeatures, true);
             }
         }
-
         return $flattened;
     }
 
     private function getFreshJsonAiTools($allFeatures): ?array
     {
         $features = array_column(MenuService::planAiToolsMenu(), 'key');
-
-        return array_combine($features, array_map(static fn ($feature) => in_array($feature, $allFeatures, true), $features));
+        return array_combine($features, array_map(static fn($f) => in_array($f, $allFeatures, true), $features));
     }
 
     private function getFreshJsonFeatures(array $allFeatures): ?array
     {
         $features = array_column(MenuService::planFeatureMenu(), 'key');
-
-        return array_combine($features, array_map(static fn ($feature) => in_array($feature, $allFeatures, true), $features));
+        return array_combine($features, array_map(static fn($f) => in_array($f, $allFeatures, true), $features));
     }
 
     private function convertPlanCredits($plan): ?array
@@ -142,9 +129,7 @@ return new class extends Migration
         }
 
         $defaultImageModelCount = count($defaultImageModels);
-        $imageCreditPerModel = $defaultImageModelCount > 0
-            ? ceil($plan->total_images / $defaultImageModelCount)
-            : 0;
+        $imageCreditPerModel = $defaultImageModelCount > 0 ? ceil($plan->total_images / $defaultImageModelCount) : 0;
 
         foreach ($defaultImageModels as $model) {
             if ($plan->total_images === -1) {
@@ -158,7 +143,6 @@ return new class extends Migration
             return $aiModels;
         } catch (JsonException $e) {
             Log::error("Error encoding AI models for plan ID {$plan->id}: " . $e->getMessage());
-
             return null;
         }
     }
@@ -169,17 +153,12 @@ return new class extends Migration
         SettingTwo::where('dalle', 'dalle2')->update(['dalle' => 'dall-e-2']);
     }
 
-    /**
-     * not used for now
-     * Convert a JSON array string to a JSON object string with keys set to true.
-     */
     private function convertArrayToJsonObject(?string $jsonArrayString): ?string
     {
         if (is_null($jsonArrayString)) {
             return null;
         }
         $array = json_decode($jsonArrayString, true, 512, JSON_THROW_ON_ERROR);
-
         if (is_array($array) && array_keys($array) !== range(0, count($array) - 1)) {
             return $jsonArrayString;
         }
@@ -188,7 +167,6 @@ return new class extends Migration
         foreach ((array) $array as $item) {
             $assocArray[$item] = true;
         }
-
         return json_encode($assocArray, JSON_THROW_ON_ERROR);
     }
 
@@ -214,42 +192,60 @@ return new class extends Migration
     public function defaultImageModels(): array
     {
         $settingsTwo = SettingTwo::query()->first();
-
         $models = [];
 
-        $dalleModel = match ($settingsTwo?->dalle) {
+        $dalleModelSlug = match ($settingsTwo?->dalle) {
             'dalle3' => EntityEnum::DALL_E_3->slug(),
             'dalle2' => EntityEnum::DALL_E_2->slug(),
             default  => $settingsTwo?->dalle ?? EntityEnum::DALL_E_2->slug(),
         };
 
-        if (! setting('dalle_hidden') && $openAIModel = EntityEnum::fromSlug($dalleModel)) {
-            $models['openai'] = $openAIModel;
+        // безопасная обработка EntityEnum::fromSlug()
+        try {
+            if (! setting('dalle_hidden')) {
+                $openAIModel = EntityEnum::fromSlug($dalleModelSlug);
+                $models['openai'] = $openAIModel;
+            }
+        } catch (Throwable $e) {
+            Log::warning('Invalid dalle model slug', ['slug' => $dalleModelSlug, 'error' => $e->getMessage()]);
         }
 
-        $stableModel = $settingsTwo?->stablediffusion_default_model ?? $settingTwo?->stablediffusion_default_model ?? EntityEnum::STABLE_DIFFUSION_XL_1024_V_1_0->slug();
-        if (! setting('stable_hidden') && $stableModel = EntityEnum::fromSlug($stableModel)) {
-            $models['stable'] = $stableModel;
+        $stableModelSlug = $settingsTwo?->stablediffusion_default_model
+            ?? EntityEnum::STABLE_DIFFUSION_XL_1024_V_1_0->slug();
+
+        try {
+            if (! setting('stable_hidden')) {
+                $stableModel = EntityEnum::fromSlug($stableModelSlug);
+                $models['stable'] = $stableModel;
+            }
+        } catch (Throwable $e) {
+            Log::warning('Invalid stable model slug', ['slug' => $stableModelSlug, 'error' => $e->getMessage()]);
         }
 
-        $falModel = setting('fal_ai_default_model', 'flux-realism');
-        if ($falModel = EntityEnum::fromSlug($falModel)) {
+        $falModelSlug = setting('fal_ai_default_model', 'flux-realism');
+        try {
+            $falModel = EntityEnum::fromSlug($falModelSlug);
             $models['fal'] = $falModel;
+        } catch (Throwable $e) {
+            Log::warning('Invalid fal model slug', ['slug' => $falModelSlug, 'error' => $e->getMessage()]);
         }
 
         return $models;
     }
 
-    /** @noinspection PhpDuplicateMatchArmBodyInspection */
     public function defaultWordModel(): EntityEnum
     {
         $defaultEngine = setting('default_ai_engine');
-
-        return match ($defaultEngine) {
-            'openai'    => EntityEnum::GPT_4_O,
-            'anthropic' => EntityEnum::fromSlug(setting('anthropic_default_model')),
-            'gemini'    => EntityEnum::fromSlug(setting('gemini_default_model')),
-            default     => EntityEnum::GPT_4_O,
-        };
+        try {
+            return match ($defaultEngine) {
+                'openai'    => EntityEnum::GPT_4_O,
+                'anthropic' => EntityEnum::fromSlug(setting('anthropic_default_model')),
+                'gemini'    => EntityEnum::fromSlug(setting('gemini_default_model')),
+                default     => EntityEnum::GPT_4_O,
+            };
+        } catch (Throwable $e) {
+            Log::warning('Invalid default word model', ['engine' => $defaultEngine, 'error' => $e->getMessage()]);
+            return EntityEnum::GPT_4_O;
+        }
     }
 };
