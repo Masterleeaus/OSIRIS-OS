@@ -1,0 +1,143 @@
+# Multi-Platform AIPlatform Dockerfile
+# Supports building for multiple architectures and deployment targets
+
+# Base stage with common dependencies
+FROM node:20-alpine AS base
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git \
+    bash \
+    curl \
+    docker-cli \
+    && rm -rf /var/cache/apk/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+COPY tsconfig*.json ./
+COPY .env* ./
+
+# Install dependencies
+RUN npm ci --only=production && npm cache clean --force
+
+# Development stage
+FROM base AS development
+RUN npm install --only=development
+COPY . .
+EXPOSE 3000 8000 5432
+CMD ["npm", "run", "dev:full"]
+
+# Production base stage
+FROM base AS production-base
+COPY . .
+RUN npm run build
+
+# Web production with Nginx
+FROM nginx:alpine AS web-production
+COPY --from=production-base /app/dist /usr/share/nginx/html
+COPY docker/nginx.conf /etc/nginx/nginx.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
+
+# Electron production (Linux x64)
+FROM production-base AS electron-linux-x64
+RUN npm run build:linux
+WORKDIR /app/builds/linux
+RUN tar -czf aiplatform-linux-x64.tar.gz *
+
+# Electron production (Windows x64)
+FROM electronuserland/builder:wine AS electron-windows-x64
+WORKDIR /app
+COPY --from=production-base . .
+RUN npm run build:windows
+
+# Electron production (macOS x64)
+FROM electronuserland/builder:darwin AS electron-macos-x64
+WORKDIR /app
+COPY --from=production-base . .
+RUN npm run build:macos
+
+# Electron production (macOS ARM64 - Apple Silicon)
+FROM electronuserland/builder:darwin AS electron-macos-arm64
+WORKDIR /app
+COPY --from=production-base . .
+RUN npm run build:macos-arm64
+
+# Mobile production (iOS)
+FROM production-base AS ios-production
+RUN npm run build:ios
+RUN npx cap sync ios
+WORKDIR /app/platforms/ios
+
+# Mobile production (Android)
+FROM production-base AS android-production
+RUN npm run build:android
+RUN npx cap sync android
+WORKDIR /app/platforms/android
+
+# Blockchain node with Hardhat/Ganache
+FROM production-base AS blockchain-node
+RUN npm install -g ganache-cli @nomiclabs/hardhat truffle
+COPY docker/hardhat.config.js ./
+COPY contracts/ ./contracts/
+COPY scripts/ ./scripts/
+EXPOSE 8545 8546
+CMD ["ganache-cli", "--host", "0.0.0.0", "--port", "8545", "--deterministic"]
+
+# AI training node with Python
+FROM python:3.9-slim AS ai-training
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY ai/ ./ai/
+COPY docker/ai-training-server.py ./
+EXPOSE 8001
+CMD ["python", "ai-training-server.py"]
+
+# IPFS node for decentralized storage
+FROM ipfs/go-ipfs:latest AS ipfs-node
+COPY docker/ipfs-config /data/ipfs/
+EXPOSE 4001 5001 8080
+CMD ["ipfs", "daemon", "--migrate"]
+
+# Edge computing node (lightweight)
+FROM node:18-alpine AS edge-node
+RUN apk add --no-cache curl
+WORKDIR /app
+COPY --from=production-base /app/dist ./
+EXPOSE 3000
+CMD ["node", "server.js"]
+
+# Quantum-resistant node (experimental)
+FROM production-base AS quantum-node
+RUN npm install quantum-resistant-crypto
+COPY quantum/ ./quantum/
+EXPOSE 9001
+CMD ["node", "quantum/server.js"]
+
+# Multi-arch manifest builder
+FROM scratch AS manifest
+COPY --from=web-production / /
+COPY --from=electron-linux-x64 / /
+COPY --from=electron-windows-x64 / /
+COPY --from=electron-macos-x64 / /
+COPY --from=electron-macos-arm64 / /
+COPY --from=ios-production / /
+COPY --from=android-production / /
+COPY --from=blockchain-node / /
+COPY --from=ai-training / /
+COPY --from=ipfs-node / /
+COPY --from=edge-node / /
+COPY --from=quantum-node / /
+
+# Default production image
+FROM web-production AS production
+LABEL maintainer="REChain Network Solutions"
+LABEL version="1.0.0"
+LABEL description="AIPlatform - Next-Generation Decentralized AI Platform"

@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www
+      - /var/www/vendor
+    environment:
+      - APP_ENV=local
+      - APP_KEY=base64:your_app_key
+      - DB_CONNECTION=mysql
+      - DB_HOST=db
+      - DB_DATABASE=aiplatform
+      - DB_USERNAME=root
+      - DB_PASSWORD=root
+    depends_on:
+      - db
+      - redis
+
+  db:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: aiplatform
+    volumes:
+      - db_data:/var/lib/mysql
+
+  redis:
+    image: redis:7.0
+    ports:
+      - "6379:6379"
+
+  blockchain:
+    image: ethereum/client-go:latest
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+    command: --http --http.addr 0.0.0.0 --http.api eth,net,web3,personal,admin,debug
+
+  ipfs:
+    image: ipfs/go-ipfs:latest
+    ports:
+      - "5001:5001"
+      - "8080:8080"
+
+volumes:
+  db_data:

@@ -1,0 +1,41 @@
+{
+  "appId": "com.rechain.aiplatform",
+  "productName": "AIPlatform",
+  "version": "1.0.0",
+  "directories": {
+    "output": "builds/desktop"
+  },
+  "files": [
+    "dist/**/*",
+    "platforms/macos/**/*",
+    "platforms/windows/**/*",
+    "platforms/linux/**/*"
+  ],
+  "mac": {
+    "target": "dmg",
+    "category": "public.app-category.productivity",
+    "icon": "platforms/macos/icon.icns",
+    "hardenedRuntime": true
+  },
+  "win": {
+    "target": "nsis",
+    "icon": "platforms/windows/icon.ico",
+    "certificateFile": "certs/cert.p12",
+    "certificatePassword": "${env.CERT_PASSWORD}"
+  },
+  "linux": {
+    "target": "AppImage",
+    "icon": "platforms/linux/icon.png",
+    "category": "Development"
+  },
+  "publish": {
+    "provider": "github",
+    "owner": "REChain-Network-Solutions",
+    "repo": "AIPlatform"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true
+  }
+}

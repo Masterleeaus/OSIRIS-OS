@@ -1,0 +1,30 @@
+{
+  "name": "aiplatform-linux",
+  "version": "1.0.0",
+  "description": "Linux version of AIPlatform using Electron",
+  "main": "main.js",
+  "scripts": {
+    "electron": "electron .",
+    "electron-dev": "cross-env NODE_ENV=development electron .",
+    "build": "electron-builder",
+    "build-mac": "electron-builder --mac",
+    "build-win": "electron-builder --win",
+    "build-linux": "electron-builder --linux"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^25.0.0",
+    "electron-builder": "^24.0.0",
+    "cross-env": "^7.0.3"
+  },
+  "build": {
+    "appId": "com.rechain.aiplatform.linux",
+    "productName": "AIPlatform Linux",
+    "directories": {
+      "output": "../../builds/linux"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}

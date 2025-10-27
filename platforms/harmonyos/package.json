@@ -1,0 +1,12 @@
+{
+  "name": "aiplatform-harmonyos",
+  "version": "1.0.0",
+  "description": "HarmonyOS version of AIPlatform",
+  "scripts": {
+    "build": "hvigorw assembleHap",
+    "dev": "hvigorw dev"
+  },
+  "dependencies": {
+    "@ohos/arkui": "^1.0.0"
+  }
+}

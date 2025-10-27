@@ -1,0 +1,16 @@
+{
+  "name": "aiplatform-aurora",
+  "version": "1.0.0",
+  "description": "Aurora version of AIPlatform using Capacitor",
+  "scripts": {
+    "build": "cap build aurora",
+    "dev": "cap run aurora"
+  },
+  "dependencies": {
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/aurora": "^5.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.0.0"
+  }
+}

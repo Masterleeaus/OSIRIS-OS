@@ -1,0 +1,21 @@
+name: aiplatform_flutter
+description: Flutter version of AIPlatform
+version: 1.0.0
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  web5_dart: ^0.1.0  # Hypothetical Web5 package for Flutter
+  http: ^1.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true

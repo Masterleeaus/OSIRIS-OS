@@ -1,0 +1,69 @@
+stages:
+  - test
+  - build
+  - deploy
+
+# Test stage
+test:
+  stage: test
+  image: php:8.3
+  services:
+    - mysql:8.0
+    - redis:7.0
+  script:
+    - apt-get update && apt-get install -y git nodejs npm
+    - curl -sS https://getcomposer.org/installer | php
+    - mv composer.phar /usr/local/bin/composer
+    - composer install --prefer-dist --no-progress
+    - npm ci
+    - cp .env.example .env
+    - php artisan key:generate
+    - php artisan migrate:fresh --seed --env=testing --force
+    - php artisan test
+  only:
+    - main
+    - develop
+
+# Build for platforms
+build:web:
+  stage: build
+  image: node:20
+  script:
+    - npm ci
+    - npm run build:web
+  artifacts:
+    paths:
+      - dist/
+  only:
+    - main
+    - develop
+
+build:ios:
+  stage: build
+  image: macos:latest
+  script:
+    - npm ci
+    - npm run build:ios
+  artifacts:
+    paths:
+      - dist-ios/
+  only:
+    - main
+    - develop
+
+# Similar jobs for other platforms: macos, windows, linux, winuwp, aurora
+
+# Deploy stage (example)
+deploy:staging:
+  stage: deploy
+  script:
+    - echo "Deploy to staging"
+  only:
+    - develop
+
+deploy:production:
+  stage: deploy
+  script:
+    - echo "Deploy to production"
+  only:
+    - main

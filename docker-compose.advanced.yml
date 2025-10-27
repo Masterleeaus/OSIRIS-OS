@@ -1,0 +1,282 @@
+version: '3.8'
+
+services:
+  # Main web application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: web-production
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./ssl:/etc/nginx/ssl:ro
+    environment:
+      - NODE_ENV=production
+      - WEB3_PROVIDER_URL=${WEB3_PROVIDER_URL}
+      - AI_API_KEY=${AI_API_KEY}
+    depends_on:
+      - database
+      - redis
+      - blockchain
+      - ai-service
+    networks:
+      - aiplatform-network
+
+  # API backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/var/www
+      - /var/www/vendor
+    environment:
+      - APP_NAME=AIPlatform
+      - APP_ENV=production
+      - APP_KEY=${APP_KEY}
+      - DB_HOST=database
+      - DB_DATABASE=${DB_NAME}
+      - DB_USERNAME=${DB_USER}
+      - DB_PASSWORD=${DB_PASS}
+      - REDIS_HOST=redis
+      - BLOCKCHAIN_RPC_URL=${BLOCKCHAIN_RPC_URL}
+    depends_on:
+      - database
+      - redis
+    networks:
+      - aiplatform-network
+
+  # Database
+  database:
+    image: mysql:8.0
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${DB_ROOT_PASS}
+      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_USER=${DB_USER}
+      - MYSQL_PASSWORD=${DB_PASS}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - aiplatform-network
+
+  # Redis cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+      - ./docker/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - aiplatform-network
+
+  # Blockchain node (Ethereum/Ganache)
+  blockchain:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: blockchain-node
+    ports:
+      - "8545:8545"
+      - "8546:8546"
+    environment:
+      - NETWORK_ID=1337
+      - BLOCK_TIME=2
+    volumes:
+      - blockchain_data:/app/data
+      - ./contracts:/app/contracts:ro
+      - ./scripts:/app/scripts:ro
+    networks:
+      - aiplatform-network
+
+  # AI Training Service
+  ai-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: ai-training
+    ports:
+      - "8001:8001"
+    environment:
+      - AI_MODEL_PATH=/app/models
+      - TRAINING_DATA_PATH=/app/data
+      - FEDERATED_NODES=${FEDERATED_NODES}
+    volumes:
+      - ai_models:/app/models
+      - ai_data:/app/data
+      - ./ai:/app/ai:ro
+    networks:
+      - aiplatform-network
+
+  # IPFS for decentralized storage
+  ipfs:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: ipfs-node
+    ports:
+      - "4001:4001"
+      - "5001:5001"
+      - "8080:8080"
+    volumes:
+      - ipfs_data:/data/ipfs
+      - ./docker/ipfs-config:/data/ipfs:ro
+    networks:
+      - aiplatform-network
+
+  # Edge computing nodes
+  edge-node-1:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: edge-node
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ID=edge-1
+      - REGION=us-west
+    networks:
+      - aiplatform-network
+
+  edge-node-2:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: edge-node
+    ports:
+      - "3002:3000"
+    environment:
+      - NODE_ID=edge-2
+      - REGION=eu-west
+    networks:
+      - aiplatform-network
+
+  # Quantum-resistant node (experimental)
+  quantum-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: quantum-node
+    ports:
+      - "9001:9001"
+    environment:
+      - QUANTUM_ALGORITHM=Kyber
+      - SECURITY_LEVEL=5
+    volumes:
+      - quantum_data:/app/quantum/data
+    networks:
+      - aiplatform-network
+
+  # Monitoring and logging
+  monitoring:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - aiplatform-network
+
+  # Logging service
+  logging:
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - ./docker/loki-config.yml:/etc/loki/local-config.yaml:ro
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - aiplatform-network
+
+  # Metrics collection
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3003:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./docker/grafana-dashboards:/var/lib/grafana/dashboards:ro
+      - ./docker/grafana-provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - monitoring
+      - logging
+    networks:
+      - aiplatform-network
+
+  # Database admin
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - ADMINER_DEFAULT_SERVER=database
+    depends_on:
+      - database
+    networks:
+      - aiplatform-network
+
+  # Development tools
+  development-tools:
+    build:
+      context: .
+      dockerfile: Dockerfile.multiplatform
+      target: development
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true
+    networks:
+      - aiplatform-network
+
+networks:
+  aiplatform-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+  blockchain_data:
+    driver: local
+  ai_models:
+    driver: local
+  ai_data:
+    driver: local
+  ipfs_data:
+    driver: local
+  quantum_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  loki_data:
+    driver: local
+  grafana_data:
+    driver: local

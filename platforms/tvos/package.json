@@ -1,0 +1,16 @@
+{
+  "name": "aiplatform-tvos",
+  "version": "1.0.0",
+  "description": "tvOS version of AIPlatform using Capacitor",
+  "scripts": {
+    "build": "cap build tvos",
+    "dev": "cap run tvos"
+  },
+  "dependencies": {
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/tvos": "^5.0.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^5.0.0"
+  }
+}

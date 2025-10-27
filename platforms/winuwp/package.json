@@ -1,0 +1,12 @@
+{
+  "name": "aiplatform-winuwp",
+  "version": "1.0.0",
+  "description": "WinUWP version of AIPlatform",
+  "main": "index.js",
+  "scripts": {
+    "build": "msbuild /p:Configuration=Release",
+    "dev": "msbuild /p:Configuration=Debug"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}

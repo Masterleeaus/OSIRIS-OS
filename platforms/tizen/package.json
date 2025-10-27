@@ -1,0 +1,13 @@
+{
+  "name": "aiplatform-tizen",
+  "version": "1.0.0",
+  "description": "Tizen version of AIPlatform",
+  "scripts": {
+    "build": "tizen build-web",
+    "package": "tizen package -t wgt",
+    "dev": "tizen run -p"
+  },
+  "dependencies": {
+    "tizen-web": "^1.0.0"
+  }
+}
