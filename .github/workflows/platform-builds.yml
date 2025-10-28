@@ -15,7 +15,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -27,7 +27,7 @@ jobs:
         run: npm run build:web
 
       - name: Upload web build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: web-build
           path: dist/
@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -52,7 +52,7 @@ jobs:
         run: npm run build:ios
 
       - name: Upload iOS build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ios-build
           path: dist-ios/
@@ -65,7 +65,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -77,7 +77,7 @@ jobs:
         run: npm run build:macos
 
       - name: Upload macOS build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-build
           path: builds/macos/
@@ -90,7 +90,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -102,7 +102,7 @@ jobs:
         run: npm run build:windows
 
       - name: Upload Windows build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows-build
           path: builds/windows/
@@ -115,7 +115,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -127,7 +127,7 @@ jobs:
         run: npm run build:linux
 
       - name: Upload Linux build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: linux-build
           path: builds/linux/
@@ -140,7 +140,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -152,7 +152,7 @@ jobs:
         run: npm run build:winuwp
 
       - name: Upload WinUWP build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: winuwp-build
           path: dist-winuwp/
@@ -165,13 +165,13 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -183,7 +183,7 @@ jobs:
         run: npm run build:android
 
       - name: Upload Android build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android-build
           path: platforms/android/build/
@@ -196,7 +196,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -211,7 +211,7 @@ jobs:
         run: npm run build:tizen
 
       - name: Upload Tizen build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tizen-build
           path: platforms/tizen/build/
@@ -235,7 +235,7 @@ jobs:
         run: npm run build:flutter
 
       - name: Upload Flutter build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: flutter-build
           path: platforms/flutter/build/
@@ -248,7 +248,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -260,7 +260,7 @@ jobs:
         run: npm run build:tvos
 
       - name: Upload tvOS build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: tvos-build
           path: platforms/tvos/build/
@@ -273,7 +273,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -285,7 +285,7 @@ jobs:
         run: npm run build:aurora
 
       - name: Upload Aurora build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aurora-build
           path: dist-aurora/
@@ -298,7 +298,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -310,7 +310,7 @@ jobs:
         run: npm run build:harmonyos
 
       - name: Upload HarmonyOS build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: harmonyos-build
           path: platforms/harmonyos/build/
@@ -325,13 +325,13 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Download web build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: web-build
           path: dist/
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
