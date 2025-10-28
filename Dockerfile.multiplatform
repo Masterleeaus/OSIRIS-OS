@@ -2,7 +2,7 @@
 # Supports building for multiple architectures and deployment targets
 
 # Base stage with common dependencies
-FROM node:20-alpine AS base
+FROM node:25-alpine AS base
 
 # Install system dependencies
 RUN apk add --no-cache \
@@ -91,7 +91,7 @@ EXPOSE 8545 8546
 CMD ["ganache-cli", "--host", "0.0.0.0", "--port", "8545", "--deterministic"]
 
 # AI training node with Python
-FROM python:3.9-slim AS ai-training
+FROM python:3.14-slim AS ai-training
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
@@ -107,7 +107,7 @@ EXPOSE 4001 5001 8080
 CMD ["ipfs", "daemon", "--migrate"]
 
 # Edge computing node (lightweight)
-FROM node:18-alpine AS edge-node
+FROM node:25-alpine AS edge-node
 RUN apk add --no-cache curl
 WORKDIR /app
 COPY --from=production-base /app/dist ./
