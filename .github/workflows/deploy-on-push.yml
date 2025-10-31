@@ -1,0 +1,14 @@
+name: Deploy on push to main (example)
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy stub
+        run: |
+          echo "Deploy step placeholder — replace with your CD tooling (helm, kubectl, terraform, etc.)"

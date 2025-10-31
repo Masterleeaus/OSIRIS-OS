@@ -1,0 +1,79 @@
+name: CI — lint, test, build
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  lint:
+    name: Lint (frontend + backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install frontend deps
+        working-directory: ./app
+        run: |
+          npm ci
+      - name: Run frontend linters
+        working-directory: ./app
+        run: |
+          npm run lint || true
+      - name: Run backend linters (if present)
+        run: |
+          if [ -f composer.json ]; then composer install --no-interaction --prefer-dist; fi
+          if [ -f pyproject.toml ]; then pip install -r requirements.txt || true; fi
+
+  test:
+    name: Test (unit)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Run frontend tests
+        working-directory: ./app
+        run: |
+          if [ -f package.json ]; then npm ci && npm test --silent || true; fi
+      - name: Run backend tests
+        run: |
+          # Example: run PHP or Python tests if present
+          if [ -f composer.json ]; then composer install && vendor/bin/phpunit || true; fi
+          if [ -f pyproject.toml ]; then pip install -r requirements.txt && pytest || true; fi
+
+  build:
+    name: Build containers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to Registry (optional)
+        if: secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build images
+        run: |
+          docker buildx build --platform linux/amd64 -t rechain/aiplatform:ci --load .

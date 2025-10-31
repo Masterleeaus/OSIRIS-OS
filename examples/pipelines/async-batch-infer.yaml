@@ -1,0 +1,24 @@
+# Example: Async Batch Inference
+id: batch-infer-1
+name: Batch Inference (async)
+description: "Run a batch of prompts asynchronously and store results in object storage."
+inputs:
+  - name: prompts
+    type: array
+    items:
+      type: string
+steps:
+  - id: enqueue
+    type: batch_enqueue
+    items: "{{ inputs.prompts }}"
+  - id: worker
+    type: batch_worker
+    concurrency: 4
+    model: rechain-text-gen
+    outputs:
+      - name: results
+outputs:
+  - name: job_id
+    from: enqueue.job_id
+metadata:
+  retention_days: 30
