@@ -3,6 +3,9 @@
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+// Include TON integration routes
+require __DIR__.'/ton.php';
+
 /*
 |--------------------------------------------------------------------------
 | API Routes
