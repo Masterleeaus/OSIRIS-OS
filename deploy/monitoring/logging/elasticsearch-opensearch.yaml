@@ -1,0 +1,345 @@
+---
+# Elasticsearch Deployment for Log Analysis
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: logging
+  namespace: monitoring
+spec:
+  version: 8.5.1
+  nodeSets:
+  - name: default
+    count: 3
+    config:
+      node.roles: ["master", "data", "ingest"]
+      xpack.security.enabled: true
+      xpack.monitoring.collection.enabled: true
+    podTemplate:
+      spec:
+        containers:
+        - name: elasticsearch
+          resources:
+            requests:
+              memory: 4Gi
+              cpu: 1
+            limits:
+              memory: 8Gi
+              cpu: 2
+        initContainers:
+        - name: configure-sysctl
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          command: ['sh', '-c', 'sysctl -w vm.max_map_count=262144']
+  http:
+    tls:
+      selfSignedCertificate:
+        subjectAltNames: []
+  updateStrategy:
+    changeBudget:
+      maxUnavailable: 1
+---
+# OpenSearch Deployment for Log Analysis
+apiVersion: opensearch.opster.io/v1
+kind: OpenSearchCluster
+metadata:
+  name: logging
+  namespace: monitoring
+spec:
+  general:
+    serviceName: opensearch
+    version: 2.4.0
+    httpPort: 9200
+    vendor: opensearch
+    setVMMaxMapCount: true
+  confMgmt:
+    autoScaler: true
+    monitoring:
+      scrapeInterval: 30s
+  dashboards:
+    enable: true
+    version: 2.4.0
+    replicas: 2
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "200m"
+      limits:
+        memory: "2Gi"
+        cpu: "1"
+  nodePools:
+    - component: masters
+      replicas: 3
+      diskSize: 30Gi
+      NodeSelector: {}
+      tolerations: []
+      roles:
+        - "data"
+        - "master"
+      resources:
+        requests:
+          cpu: 1000m
+          memory: 2Gi
+        limits:
+          cpu: 2000m
+          memory: 4Gi
+    - component: data
+      replicas: 3
+      diskSize: 100Gi
+      NodeSelector: {}
+      tolerations: []
+      roles:
+        - "data"
+      resources:
+        requests:
+          cpu: 2000m
+          memory: 4Gi
+        limits:
+          cpu: 4000m
+          memory: 8Gi
+  security:
+    config:
+      securityConfig:
+        config:
+          data:
+            config.yml: |
+              _meta:
+                type: "config"
+                config_version: 2
+              config:
+                dynamic:
+                  http:
+                    anonymous_auth_enabled: false
+                    xff:
+                      enabled: true
+                      internalProxies: '.*'
+                      remoteIpHeader:  'x-forwarded-for'
+                      trustedProxies: ['10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16']
+---
+# Fluent Bit Configuration for Elastic/OpenSearch Output
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-elastic-output
+  namespace: monitoring
+data:
+  output-elastic.conf: |
+    [OUTPUT]
+        Name            es
+        Match           kube.*
+        Host            ${ELASTICSEARCH_HOST}
+        Port            ${ELASTICSEARCH_PORT}
+        Index           kubernetes-logs-%Y.%m.%d
+        Type            _doc
+        Time_Key        @timestamp
+        Time_Key_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep       On
+        Generate_ID     On
+        Suppress_Type_Name On
+        Trace_Output    Off
+        Trace_Error     On
+        Logstash_Format On
+        Logstash_Prefix kubernetes-logs
+        Logstash_DateFormat %Y.%m.%d
+        Include_Tag_Key On
+        Tag_Key        kubernetes.labels.app
+        Retry_Limit    5
+        Buffer_Size    5MB
+        HTTP_User      ${ELASTICSEARCH_USER}
+        HTTP_Passwd    ${ELASTICSEARCH_PASSWORD}
+
+  output-opensearch.conf: |
+    [OUTPUT]
+        Name            opensearch
+        Match           kube.*
+        Host            ${OPENSEARCH_HOST}
+        Port            ${OPENSEARCH_PORT}
+        Index           kubernetes-logs-%Y.%m.%d
+        Type            _doc
+        Time_Key        @timestamp
+        Time_Key_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep       On
+        Generate_ID     On
+        Trace_Output    Off
+        Trace_Error     On
+        Logstash_Format On
+        Logstash_Prefix kubernetes-logs
+        Logstash_DateFormat %Y.%m.%d
+        Include_Tag_Key On
+        Tag_Key        kubernetes.labels.app
+        Retry_Limit    5
+        Buffer_Size    5MB
+        HTTP_User      ${OPENSEARCH_USER}
+        HTTP_Passwd    ${OPENSEARCH_PASSWORD}
+        AWS_Auth       On
+        AWS_Region     ${AWS_REGION}
+---
+# Log Analysis Dashboard for OpenSearch Dashboards
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-dashboards-dashboard
+  namespace: monitoring
+data:
+  log-analysis.ndjson: |
+    {
+      "type": "dashboard",
+      "id": "log-analysis-dashboard",
+      "attributes": {
+        "title": "Kubernetes Log Analysis",
+        "description": "Comprehensive log analysis dashboard for Kubernetes",
+        "panelsJSON": "[\n          {\n            \"id\": \"log-volume-panel\",
+            \"type\": \"visualization\",
+            \"gridData\": {\"x\":0,\"y\":0,\"w\":12,\"h\":8},
+            \"version\": \"7.10.2\"
+          },
+          {\n            \"id\": \"error-distribution-panel\",
+            \"type\": \"visualization\",
+            \"gridData\": {\"x\":12,\"y\":0,\"w\":12,\"h\":8},
+            \"version\": \"7.10.2\"
+          },
+          {\n            \"id\": \"log-patterns-panel\",
+            \"type\": \"visualization\",
+            \"gridData\": {\"x\":0,\"y\":8,\"w\":24,\"h\":10},
+            \"version\": \"7.10.2\"
+          },
+          {\n            \"id\": \"anomaly-detection-panel\",
+            \"type\": \"visualization\",
+            \"gridData\": {\"x\":0,\"y\":18,\"w\":24,\"h\":10},
+            \"version\": \"7.10.2\"
+          }\n        ]",
+        "optionsJSON": "{\"useMargins\":true,\"hidePanelTitles\":false}",
+        "version": 1,
+        "timeRestore": true,
+        "kibanaSavedObjectMeta": {
+          "searchSourceJSON": "{\"filter\":[]}"
+        }
+      },
+      "references": [
+        {
+          "id": "log-volume-saved-search",
+          "name": "log-volume-panel",
+          "type": "search"
+        },
+        {
+          "id": "error-distribution-saved-search",
+          "name": "error-distribution-panel",
+          "type": "search"
+        },
+        {
+          "id": "log-patterns-saved-search",
+          "name": "log-patterns-panel",
+          "type": "search"
+        },
+        {
+          "id": "anomaly-detection-saved-search",
+          "name": "anomaly-detection-panel",
+          "type": "search"
+        }
+      ]
+    }"
+---
+# Log Analysis Alerting Rules
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: log-analysis-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-stack
+spec:
+  groups:
+  - name: log-analysis.rules
+    rules:
+    # Log Anomaly Detection
+    - alert: LogAnomalyDetected
+      expr: |
+        abs(
+          rate(fluentbit_output_processed_records_total[5m])
+          -
+          predict_linear(fluentbit_output_processed_records_total[1h], 300)
+        )
+        >
+        2 * stddev(rate(fluentbit_output_processed_records_total[1h]))
+      for: 5m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Log volume anomaly detected"
+        description: |
+          Log volume has deviated significantly from the expected pattern.
+          
+          **Current Rate:** {{ $value | humanize }} logs/s
+          **Expected Range:** {{ $expected | humanize }} ± {{ $stddev | humanize }} logs/s
+          
+          **Runbook:** https://internal-docs/runbooks/log-analysis#anomaly-detection
+
+    # Error Rate Spike
+    - alert: ErrorRateSpike
+      expr: |
+        sum(rate(fluentbit_output_processed_records_total{log_level=~"error|ERROR|Error"}[5m])) by (namespace, pod, container)
+        >
+        (
+          avg_over_time(fluentbit_output_processed_records_total{log_level=~"error|ERROR|Error"}[1h])
+          * 3
+        )
+      for: 5m
+      labels:
+        severity: critical
+        team: sre
+        category: logs
+      annotations:
+        summary: "Error rate spike in {{ $labels.namespace }}/{{ $labels.pod }}"
+        description: |
+          Error rate has increased significantly.
+          
+          **Current Rate:** {{ $value | humanize }} errors/s
+          **Namespace:** {{ $labels.namespace }}
+          **Pod:** {{ $labels.pod }}
+          **Container:** {{ $labels.container }}
+          
+          **Runbook:** https://internal-docs/runbooks/log-analysis#error-spike
+
+    # Log Pattern Change
+    - alert: LogPatternChange
+      expr: |
+        changes(
+          count_over_time(
+            {namespace=~".+"} |~ "error" | pattern "<timestamp> <level> <error_type>: <message>" [1h]
+          )[1h:1m]
+        ) > 10
+      for: 15m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Significant change in log patterns detected"
+        description: |
+          The distribution of log patterns has changed significantly.
+          
+          **Runbook:** https://internal-docs/runbooks/log-analysis#pattern-change
+---
+# Log Analysis Service Monitor
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: log-analysis
+  namespace: monitoring
+  labels:
+    app: log-analysis
+    release: prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: log-analysis
+  endpoints:
+  - port: http-metrics
+    interval: 30s
+    path: /metrics
+  namespaceSelector:
+    matchNames:
+    - monitoring

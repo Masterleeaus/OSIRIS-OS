@@ -241,6 +241,19 @@ if (! function_exists('get_theme')) {
         return $theme;
     }
 }
+
+if (! function_exists('check_plan_affiliate_status')) {
+    function check_plan_affiliate_status($user): bool
+    {
+        $plan = $user?->activePlan();
+        if ($plan) {
+            return $plan->affiliate_status;
+        }
+
+        return false;
+    }
+}
+
 // hsl_to_hex
 if (! function_exists('hsl_to_hex')) {
     function hsl_to_hex($h, $s, $l)

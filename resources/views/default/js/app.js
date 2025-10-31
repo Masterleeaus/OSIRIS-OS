@@ -10,7 +10,7 @@ import clipboard from './components/clipboard';
 import assignViewCredits from './components/assignViewCredits';
 import openaiRealtime from './components/realtime-frontend/openaiRealtime';
 import advancedImageEditor from './components/advancedImageEditor';
-import { debounce, throttle } from 'lodash';
+import { debounce, difference, throttle, uniq } from 'lodash';
 import creativeSuite from './components/creative-suite/creativeSuite';
 import { lqdCustomizer, lqdCustomizerFontPicker } from './components/customizer';
 import elevenlabsRealtime from './components/realtime-frontend/elevenlabsRealtime';
@@ -404,6 +404,185 @@ document.addEventListener( 'alpine:init', () => {
 			this.page = page;
 		},
 	} );
+
+	// Documents Selection
+	Alpine.store( 'documentsSelection', {
+		selectedItems: [],
+		/**
+		 *
+		 * @param {{idArray: []; checkboxEl: HTMLInputElement; action: 'auto' | 'add' | 'remove'}} param0
+		 */
+		updateSelectedItems( { idArray = [], checkboxEl, action = 'auto' } ) {
+			if (checkboxEl) {
+				const id = checkboxEl.getAttribute('data-id');
+
+				if (id === 'doc-select-all-visible') {
+					// Handle select all visible checkbox
+					this.handleSelectAllVisible(checkboxEl);
+				} else {
+					// Handle individual document checkbox
+					this.handleIndividualSelection(checkboxEl, id);
+				}
+			} else if (idArray.length > 0) {
+				// Handle programmatic selection with ID array
+				this.handleArraySelection(idArray, action);
+			}
+
+			// Update select all checkbox state
+			this.updateSelectAllCheckboxState();
+		},
+
+		handleSelectAllVisible(selectAllCheckbox) {
+			const visibleCheckboxes = document.querySelectorAll('.document-checkbox:not([data-id="doc-select-all-visible"])');
+			const shouldSelectAll = selectAllCheckbox.checked;
+
+			visibleCheckboxes.forEach(checkbox => {
+				const id = checkbox.getAttribute('data-id');
+				checkbox.checked = shouldSelectAll;
+
+				if (shouldSelectAll) {
+					if (!this.selectedItems.includes(id)) {
+						this.selectedItems.push(id);
+					}
+				} else {
+					this.selectedItems = this.selectedItems.filter(item => item !== id);
+				}
+			});
+		},
+
+		handleIndividualSelection(checkbox, id) {
+			if (checkbox.checked) {
+				if (!this.selectedItems.includes(id)) {
+					this.selectedItems.push(id);
+				}
+			} else {
+				this.selectedItems = this.selectedItems.filter(item => item !== id);
+			}
+		},
+
+		handleArraySelection(idArray, action) {
+			if (action === 'add') {
+				idArray.forEach(id => {
+					if (!this.selectedItems.includes(id)) {
+						this.selectedItems.push(id);
+					}
+				});
+			} else if (action === 'remove') {
+				this.selectedItems = this.selectedItems.filter(item => !idArray.includes(item));
+			}
+		},
+
+		updateSelectAllCheckboxState() {
+			const selectAllCheckbox = document.querySelector('.document-checkbox-all-visible');
+			if (!selectAllCheckbox) return;
+
+			const visibleCheckboxes = document.querySelectorAll('.document-checkbox:not([data-id="doc-select-all-visible"])');
+			const checkedCheckboxes = document.querySelectorAll('.document-checkbox:not([data-id="doc-select-all-visible"]):checked');
+
+			if (checkedCheckboxes.length === 0) {
+				// None selected
+				selectAllCheckbox.checked = false;
+				selectAllCheckbox.classList.remove('partial');
+			} else if (checkedCheckboxes.length === visibleCheckboxes.length) {
+				// All selected
+				selectAllCheckbox.checked = true;
+				selectAllCheckbox.classList.remove('partial');
+			} else {
+				// Partial selection
+				selectAllCheckbox.checked = false;
+				selectAllCheckbox.classList.add('partial');
+			}
+		},
+
+		clearSelection() {
+			this.selectedItems = [];
+			document.querySelectorAll('.document-checkbox').forEach(checkbox => {
+				checkbox.checked = false;
+			});
+			this.updateSelectAllCheckboxState();
+		},
+
+		getSelectedCount() {
+			return this.selectedItems.length;
+		},
+
+		isSelected(id) {
+			return this.selectedItems.includes(id);
+		},
+
+		async bulkDelete(mode = 'selected', options = {}) {
+			let payload = {};
+
+			const {
+				confirmAllMessage = 'Are you sure you want to delete all documents?',
+				confirmSelectedMessage = 'Are you sure you want to delete the selected documents?',
+				noSelectionMessage = 'Please select documents to delete.',
+				deleteUrl = '/dashboard/user/openai/documents/bulk-delete',
+				onSuccess = null,
+				onError = null
+			} = options;
+
+			if (mode === 'all') {
+				if (!confirm(confirmAllMessage)) {
+					return;
+				}
+				payload.all = true;
+			} else {
+				if (this.selectedItems.length === 0) {
+					alert(noSelectionMessage);
+					return;
+				}
+
+				if (!confirm(confirmSelectedMessage)) {
+					return;
+				}
+
+				payload.ids = this.selectedItems;
+			}
+
+			try {
+				const response = await fetch(deleteUrl, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+					},
+					body: JSON.stringify(payload)
+				});
+
+				const data = await response.json();
+
+				if (data.success) {
+					if (typeof toastr !== 'undefined') {
+						toastr.success(data.message);
+					}
+					this.clearSelection();
+
+					if (onSuccess) {
+						onSuccess(data);
+					} else {
+						location.reload();
+					}
+				} else if (data.message) {
+					if (typeof toastr !== 'undefined') {
+						toastr.error(data.message);
+					}
+					if (onError) {
+						onError(data);
+					}
+				}
+			} catch (error) {
+				console.error(error);
+				const errorMessage = 'An error occurred while processing your request.';
+				if (typeof toastr !== 'undefined') {
+					toastr.error(errorMessage);
+				}
+				if (onError) {
+					onError({ message: errorMessage, error });
+				}
+			}
+		}
+	});
 
 	// Social media posts view mode
 	Alpine.store( 'socialMediaPostsViewMode', {

@@ -9,6 +9,7 @@ use App\Domains\Entity\Contracts\Calculate\WithImagesInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImageToVideoInterface;
 use App\Domains\Entity\Contracts\Calculate\WithMinuteInterface;
 use App\Domains\Entity\Contracts\Calculate\WithPlagiarismInterface;
+use App\Domains\Entity\Contracts\Calculate\WithPresentationInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSecondInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSpeechToTextInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToSpeechInterface;
@@ -60,6 +61,11 @@ class EntityStats
     public static function second(): EntityStatItem
     {
         return self::makeStat(WithSecondInterface::class);
+    }
+
+    public static function presentation(): EntityStatItem
+    {
+        return self::makeStat(WithPresentationInterface::class);
     }
 
     public static function word(): EntityStatItem

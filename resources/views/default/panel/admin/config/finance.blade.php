@@ -77,6 +77,7 @@
 											@lang('New')
 										</x-badge>
 									</h4>
+									<div class="flex flex-col gap-2">
 									<x-forms.input
 										id="onetime_commission"
 										name="onetime_commission"
@@ -87,6 +88,18 @@
 										label="{{ __('Onetime Commission') }}"
 										tooltip="{{ __('If you want to give a commission to the affiliate only once, you can activate this feature. When disabled, the affiliate will receive a recurring commission for each purchase.') }}"
 									/>
+									<!-- allow affiliate if the plan allows only -->
+									<x-forms.input
+										id="affiliate_plan_restriction"
+										name="affiliate_plan_restriction"
+										type="checkbox"
+										switcher
+										type="checkbox"
+										:checked="setting('affiliate_plan_restriction', 0) == 1"
+										label="{{ __('Plan Restriction') }}"
+										tooltip="{{ __('If you want to allow affiliates only if the plan allows it, you can activate this feature. When disabled, all plans will be available for affiliate program.') }}"
+									/>
+									</div>
 								</x-card>
 							</div>
 						</div>

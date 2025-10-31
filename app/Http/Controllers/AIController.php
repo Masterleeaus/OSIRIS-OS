@@ -763,6 +763,10 @@ class AIController extends Controller
      */
     public function codeOutput($prompt, $post, $user): JsonResponse
     {
+        set_time_limit(0);
+        ini_set('memory_limit', '-1');
+        ini_set('max_execution_time', 3600);
+
         if (Helper::appIsDemo()) {
             $limiter = WordLimitRateLimiter::make('generator_ai_code_generator', 2000);
 

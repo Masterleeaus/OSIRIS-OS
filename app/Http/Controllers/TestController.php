@@ -7,16 +7,7 @@ use Illuminate\Http\Request;
 
 class TestController extends Controller
 {
-    public function test(Request $request)
-    {
-        $userId = auth()->id();
-        $folder = 'uploads/media/';
-        $folder .= 'other/';
-        $folder .= 'u-' . $userId . '/support_1756125134_7gPb8.pdf';
-        dd(file_exists(public_path($folder)));
-
-        return view('test');
-    }
+    public function test(Request $request) {}
 
     public function stream(Request $request, string $model)
     {

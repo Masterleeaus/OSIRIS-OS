@@ -212,11 +212,7 @@ Route::middleware('auth:api')->group(function () {
         Route::post('/generate', "App\Http\Controllers\Api\TTSController@generate");
     });
 
-    Route::prefix('backlogs')->group(function () {
-        Route::get('/', 'App\Http\Controllers\Api\BacklogController@index');
-        Route::post('/', 'App\Http\Controllers\Api\BacklogController@store');
-        Route::get('/{id}', 'App\Http\Controllers\Api\BacklogController@show');
-        Route::put('/{id}', 'App\Http\Controllers\Api\BacklogController@update');
-        Route::delete('/{id}', 'App\Http\Controllers\Api\BacklogController@destroy');
+    Route::prefix('entity')->group(function () {
+        Route::get('/list', 'App\Http\Controllers\Api\EntityController@getAllEntities'); // returns all entities with tokens
     });
 });

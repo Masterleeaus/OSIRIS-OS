@@ -61,6 +61,7 @@ enum Introduction: string implements Contracts\WithStringBackedEnum
     case AI_IMAGE = 'ai_image';
     case AI_PDF = 'ai_pdf';
     case AI_CODE = 'ai_code';
+    case AI_PRESENTATION = 'ai_presentation';
     case ADMIN_DASHBOARD = 'admin_dashboard';
     case ADMIN_MARKETPLACE = 'marketplace';
     case ADMIN_THEMES = 'themes';

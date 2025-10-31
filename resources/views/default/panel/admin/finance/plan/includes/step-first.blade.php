@@ -270,6 +270,29 @@
 			</div>
 		</div>
 
+		<div
+			class="col-12 col-sm-6 space-y-5"
+			x-data="{ planRestricted: {{ setting('affiliate_plan_restriction', '0') }} }"
+		>
+			<div
+				id="countField"
+				x-show="planRestricted"
+				x-cloak
+			>
+				<!-- affiliate_status -->
+				<x-form.group no-group-label>
+					<x-form.checkbox
+						class:container="mb-4"
+						wire:model="plan.affiliate_status"
+						label="{{ __('Affiliate Status') }}"
+						switcher
+						tooltip="{{ __('If you want to allow affiliates only if the plan allows it, you can activate this feature. When disabled, all plans will be available for affiliate program.') }}"
+						checked="{{ $plan?->affiliate_status }}"
+					/>
+				</x-form.group>
+			</div>
+		</div>
+
 		<div class="col-12 col-sm-6 space-y-5">
 			<x-form.group no-group-label>
 				<x-form.checkbox

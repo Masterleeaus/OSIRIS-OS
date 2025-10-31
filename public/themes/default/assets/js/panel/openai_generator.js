@@ -3,33 +3,60 @@ $('#file').on('change', function () {
 	let isInvalid = false;
 	const file = this.files[0];
 	if (!file) return; // No file selected
-	const allowedExtensions = ['mp3', 'mp4', 'mpeg', 'mpga', 'm4a', 'wav', 'webm', 'ogg'];
+
+	const allowedExtensions = ['mp3', 'mpeg', 'mpga', 'm4a', 'wav', 'ogg', 'webm', 'aac', 'flac'];
 	const allowedMimes = [
-		'audio/mpeg', 'audio/mp3', 'audio/mp4',
-		'audio/x-m4a', 'audio/wav', 'audio/webm', 'audio/ogg'
+		'audio/mpeg', 'audio/mp3', 'audio/x-m4a',
+		'audio/wav', 'audio/webm', 'audio/ogg', 'audio/aac', 'audio/flac'
 	];
+
 	if (file.size > 24900000) { // ~25 MB
 		toastr.error(magicai_localize?.file_size_exceed || 'This file exceeds the upload limit');
 		isInvalid = true;
 	}
-	let ext = '';
-	if (file.name.includes('.')) {
-		// Take only the last segment after the last dot
-		ext = file.name.split('.').pop().toLowerCase();
-	}
-	let mime = (file.type || '').toLowerCase();
 
-	if (!allowedExtensions.includes(ext) && !allowedMimes.includes(mime)) {
+	let mime = (file.type || '').toLowerCase();
+	let name = file.name || '';
+	let ext = '';
+
+	// Try to extract a real extension
+	if (name.includes('.')) {
+		ext = name.split('.').pop().toLowerCase();
+	} else {
+		// Guess extension based on name keywords if missing
+		const lowerName = name.toLowerCase();
+		for (const candidate of allowedExtensions) {
+			if (lowerName.includes(candidate)) {
+				ext = candidate;
+				break;
+			}
+		}
+	}
+
+	if (!allowedMimes.includes(mime) && !allowedExtensions.includes(ext)) {
 		toastr.error(
 			magicai_localize?.invalid_extension ||
-			'Invalid file type. Accepted: ogg, mp3, mp4, mpeg, mpga, m4a, wav, webm'
+			'Invalid audio file. Accepted: mp3, mpeg, mpga, m4a, wav, ogg, webm, aac, flac'
 		);
 		isInvalid = true;
 	}
+
+	if (!isInvalid && mime === 'video/webm') {
+		toastr.error(
+			magicai_localize?.invalid_extension ||
+			'Video files are not allowed. Please upload an audio-only file.'
+		);
+		isInvalid = true;
+	}
+
+	// Reset input if invalid
 	if (isInvalid) {
 		this.value = null;
 	}
 });
+
+
+
 
 // @formatter:off
 document.addEventListener( 'DOMContentLoaded', function () {

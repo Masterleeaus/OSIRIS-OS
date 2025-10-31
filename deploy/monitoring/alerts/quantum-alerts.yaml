@@ -1,0 +1,174 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: quantum-alerts
+  labels:
+    app: kube-prometheus-stack
+    release: monitoring
+spec:
+  groups:
+  - name: quantum-node.rules
+    rules:
+    - alert: HighErrorRate
+      expr: |
+        sum(rate(quantum_requests_total{status=~"5.."}[5m])) by (service, endpoint)
+        / 
+        sum(rate(quantum_requests_total[5m])) by (service, endpoint)
+        > 0.05
+      for: 10m
+      labels:
+        severity: critical
+        team: quantum
+      annotations:
+        summary: "High error rate on {{ $labels.endpoint }}"
+        description: "{{ $value | humanizePercentage }} of requests are failing on {{ $labels.endpoint }}"
+
+    - alert: HighLatency
+      expr: |
+        histogram_quantile(0.95, 
+          sum(rate(quantum_request_duration_seconds_bucket[1m])) by (le, endpoint)
+        ) > 1
+      for: 5m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High latency on {{ $labels.endpoint }}"
+        description: "95th percentile latency is {{ $value }}s on {{ $labels.endpoint }}"
+
+    - alert: PodCrashLooping
+      expr: |
+        rate(kube_pod_container_status_restarts_total{container=~"quantum-node.*"}[15m]) > 0
+      for: 15m
+      labels:
+        severity: critical
+        team: quantum
+      annotations:
+        summary: "Pod {{ $labels.pod }} is crash looping"
+        description: "Container {{ $labels.container }} in pod {{ $labels.pod }} is restarting frequently"
+
+    - alert: NodeDown
+      expr: |
+        up{job=~"quantum-node.*"} == 0
+      for: 5m
+      labels:
+        severity: critical
+        team: quantum
+      annotations:
+        summary: "Quantum node {{ $labels.instance }} is down"
+        description: "The quantum node {{ $labels.instance }} has been down for more than 5 minutes"
+
+    - alert: HighMemoryUsage
+      expr: |
+        (sum(container_memory_working_set_bytes{container=~"quantum-node.*"}) by (pod)
+        / 
+        sum(kube_pod_container_resource_limits{resource="memory", container=~"quantum-node.*"}) by (pod) * 100) > 90
+      for: 15m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High memory usage in pod {{ $labels.pod }}"
+        description: "Memory usage in pod {{ $labels.pod }} is {{ $value | humanizePercentage }} of its limit"
+
+    - alert: HighCPUUsage
+      expr: |
+        (sum(rate(container_cpu_usage_seconds_total{container=~"quantum-node.*"}[5m])) by (pod)
+        / 
+        sum(kube_pod_container_resource_limits{resource="cpu", container=~"quantum-node.*"}) by (pod) * 100) > 90
+      for: 15m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High CPU usage in pod {{ $labels.pod }}"
+        description: "CPU usage in pod {{ $labels.pod }} is {{ $value | humanizePercentage }} of its limit"
+
+    - alert: LowPeerCount
+      expr: |
+        sum(quantum_peers_total) by (node) < 3
+      for: 10m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "Low peer count on node {{ $labels.node }}"
+        description: "Node {{ $labels.node }} has only {{ $value }} peers, which is below the minimum threshold"
+
+    - alert: HighNetworkErrors
+      expr: |
+        rate(quantum_network_errors_total[5m]) > 10
+      for: 5m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High network error rate on {{ $labels.node }}"
+        description: "Network error rate is {{ $value }} errors/second on node {{ $labels.node }}"
+
+    - alert: HighMessageQueueSize
+      expr: |
+        quantum_message_queue_size > 1000
+      for: 10m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High message queue size on {{ $labels.node }}"
+        description: "Message queue size is {{ $value }} on node {{ $labels.node }}"
+
+    - alert: HighDiskUsage
+      expr: |
+        (kubelet_volume_stats_used_bytes{namespace=~"quantum-.*"} / 
+         kubelet_volume_stats_capacity_bytes{namespace=~"quantum-.*"} * 100) > 85
+      for: 15m
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High disk usage in {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}"
+        description: "Disk usage is {{ $value | humanizePercentage }} in {{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }}"
+
+  - name: quantum-slo.rules
+    rules:
+    - record: quantum:requests:rate5m
+      expr: |
+        sum(rate(quantum_requests_total[5m])) by (service, endpoint, status)
+
+    - record: quantum:request_duration_seconds:histogram_quantile
+      expr: |
+        histogram_quantile(0.95, 
+          sum(rate(quantum_request_duration_seconds_bucket[5m])) by (le, endpoint)
+        )
+
+    - record: quantum:error_rate:ratio_rate5m
+      expr: |
+        sum(rate(quantum_requests_total{status=~"5.."}[5m])) by (service, endpoint)
+        / 
+        sum(rate(quantum_requests_total[5m])) by (service, endpoint)
+
+    - alert: APIAvailability
+      expr: |
+        sum(rate(quantum_requests_total{status=~"5.."}[1h])) by (service, endpoint)
+        / 
+        sum(rate(quantum_requests_total[1h])) by (service, endpoint) > 0.01
+      for: 1h
+      labels:
+        severity: critical
+        team: quantum
+      annotations:
+        summary: "API availability below 99% for {{ $labels.endpoint }}"
+        description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.endpoint }}"
+
+    - alert: APILatency
+      expr: |
+        histogram_quantile(0.95, 
+          sum(rate(quantum_request_duration_seconds_bucket[5m])) by (le, endpoint)
+        ) > 2
+      for: 1h
+      labels:
+        severity: warning
+        team: quantum
+      annotations:
+        summary: "High latency on {{ $labels.endpoint }}"
+        description: "95th percentile latency is {{ $value }}s on {{ $labels.endpoint }}"

@@ -4,7 +4,6 @@ namespace App\Packages\FalAI\Concerns;
 
 use Illuminate\Http\Client\Response;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Response as FacadesResponse;
 
 trait HasStatusResponse
@@ -21,14 +20,10 @@ trait HasStatusResponse
             ]);
         }
 
-        Log::error('FAL API error response', [
-            'status' => $res->status(),
-            'body'   => $res->body(),
-        ]);
-
         return FacadesResponse::json([
             'status'  => 'error',
             'message' => __('Something went wrong. Please contact support for assistance.'),
+            'resData' => $res->json(),
         ], $res->status());
     }
 }

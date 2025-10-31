@@ -13,6 +13,7 @@ use App\Domains\Engine\Drivers\DeepSeekAIEngineDriver;
 use App\Domains\Engine\Drivers\ElevenlabsEngineDriver;
 use App\Domains\Engine\Drivers\FallAIEngineDriver;
 use App\Domains\Engine\Drivers\FreepikEngineDriver;
+use App\Domains\Engine\Drivers\GammaAIEngineDriver;
 use App\Domains\Engine\Drivers\GeminiEngineDriver;
 use App\Domains\Engine\Drivers\GoogleEngineDriver;
 use App\Domains\Engine\Drivers\HeygenEngineDriver;
@@ -97,6 +98,7 @@ enum EngineEnum: string implements Contracts\WithStringBackedEnum
 
     case FAL_AI = 'fal_ai';
 
+    case GAMMA_AI = 'gamma_ai';
     case X_AI = 'x_ai';
 
     case AI_ML_MINIMAX = 'minimax';
@@ -138,6 +140,7 @@ enum EngineEnum: string implements Contracts\WithStringBackedEnum
             self::HEYGEN                 => __('Heygen'),
             self::PEBBLELY               => __('Pebblely'),
             self::FAL_AI                 => __('Fal AI'),
+            self::GAMMA_AI               => __('Gamma AI'),
             self::X_AI                   => __('X AI'),
             self::PI_API                 => __('PiAPI'),
             self::AI_ML_MINIMAX          => __('AI/ML Minimax'),
@@ -175,6 +178,7 @@ enum EngineEnum: string implements Contracts\WithStringBackedEnum
             self::HEYGEN           => HeygenEngineDriver::class,
             self::PEBBLELY         => PebblelyEngineDriver::class,
             self::FAL_AI           => FallAIEngineDriver::class,
+            self::GAMMA_AI         => GammaAIEngineDriver::class,
             self::CREATIFY         => CreatifyEngineDriver::class,
             self::TOPVIEW          => TopviewEngineDriver::class,
             self::VIZARD           => VizardEngineDriver::class,
@@ -260,14 +264,25 @@ enum EngineEnum: string implements Contracts\WithStringBackedEnum
                 EntityEnum::ISOLATOR,
             ],
             self::PI_API 		        => [EntityEnum::MIDJOURNEY],
+            self::GAMMA_AI         => [EntityEnum::GAMMA_AI],
             self::FAL_AI           => [
                 EntityEnum::fromSlug(setting('fal_ai_default_model', EntityEnum::FLUX_PRO->slug())),
                 EntityEnum::VEO_2,
                 EntityEnum::VEO_3,
                 EntityEnum::VEO_3_FAST,
+                EntityEnum::VEO_3_1_TEXT_TO_VIDEO,
+                EntityEnum::VEO_3_1_IMAGE_TO_VIDEO,
+                EntityEnum::VEO_3_1_TEXT_TO_VIDEO_FAST,
+                EntityEnum::VEO_3_1_IMAGE_TO_VIDEO_FAST,
+                EntityEnum::VEO_3_1_FIRST_LAST_FRAME_TO_VIDEO,
+                EntityEnum::VEO_3_1_FIRST_LAST_FRAME_TO_VIDEO_FAST,
+                EntityEnum::VEO_3_1_REFERENCE_TO_VIDEO,
                 EntityEnum::VEED,
                 EntityEnum::KLING,
                 EntityEnum::KLING_2_1,
+                EntityEnum::KLING_2_5_TURBO_PRO_TTV,
+                EntityEnum::KLING_2_5_TURBO_PRO_ITV,
+                EntityEnum::KLING_2_5_TURBO_STANDARD_ITV,
                 EntityEnum::KLING_IMAGE,
                 EntityEnum::KLING_VIDEO,
                 EntityEnum::LUMA_DREAM_MACHINE,

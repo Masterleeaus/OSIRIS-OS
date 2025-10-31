@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "quantum-infra-zero.fullname" . }}
+  labels:
+    {{- include "quantum-infra-zero.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "quantum-infra-zero.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        {{- include "quantum-infra-zero.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        prometheus.io/scrape: "{{ .Values.monitoring.enabled | toString }}"
+        prometheus.io/port: "{{ .Values.service.port }}"
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "quantum-infra-zero.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: qmp
+              containerPort: {{ .Values.qmp.port }}
+              protocol: TCP
+            - name: metrics
+              containerPort: 9100
+              protocol: TCP
+          env:
+            - name: NODE_ID
+              value: "{{ .Values.node.id | default (include "quantum-infra-zero.nodeId" .) }}"
+            - name: NODE_PORT
+              value: "{{ .Values.node.port }}"
+            - name: ENVIRONMENT
+              value: "{{ .Values.node.environment }}"
+            - name: LOG_LEVEL
+              value: "{{ .Values.node.logLevel }}"
+            {{- if .Values.qmp.tls.enabled }}
+            - name: QMP_TLS_ENABLED
+              value: "true"
+            - name: QMP_TLS_CERT
+              value: "/etc/qmp/tls/tls.crt"
+            - name: QMP_TLS_KEY
+              value: "/etc/qmp/tls/tls.key"
+            {{- end }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.node.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            {{- if .Values.qmp.tls.enabled }}
+            - name: qmp-tls
+              mountPath: /etc/qmp/tls
+              readOnly: true
+            {{- end }}
+            {{- with .Values.volumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.qmp.port }}
+              scheme: {{ if .Values.qmp.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: {{ .Values.qmp.port }}
+              scheme: {{ if .Values.qmp.tls.enabled }}HTTPS{{ else }}HTTP{{ end }}
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 2
+            failureThreshold: 3
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "quantum-infra-zero.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.qmp.tls.enabled }}
+        - name: qmp-tls
+          secret:
+            secretName: {{ .Values.qmp.tls.secretName | default (printf "%s-tls" (include "quantum-infra-zero.fullname" .)) }}
+        {{- end }}
+        {{- with .Values.volumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}

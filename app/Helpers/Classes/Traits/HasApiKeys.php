@@ -14,6 +14,11 @@ trait HasApiKeys
         return Arr::random(explode(',', setting('piapi_ai_api_secret')));
     }
 
+    public static function setGammaApiKey(): string
+    {
+        return Arr::random(explode(',', setting('gamma_api_secret', 'empty')));
+    }
+
     public static function setFalAIKey(): string
     {
         $apiKeys = explode(',', setting('fal_ai_api_secret', 'empty'));

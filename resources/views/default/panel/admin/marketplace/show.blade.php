@@ -1,20 +1,20 @@
 @php
     $price_details = [
         [
+            'label' => 'Free Updates',
+            'value' => 'Lifetime',
+        ],
+        [
             'label' => 'License',
             'value' => 'Lifetime',
         ],
         [
-            'label' => 'Support & Updates',
+            'label' => 'Support',
             'value' => '6 months',
         ],
         [
             'label' => 'Installation',
             'value' => 'One Click',
-        ],
-        [
-            'label' => 'Recently Updated',
-            'value' => 'Yes',
         ],
     ];
 @endphp

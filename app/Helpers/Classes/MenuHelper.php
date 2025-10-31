@@ -35,7 +35,44 @@ class MenuHelper
         'ext_chat_bot',
     ];
 
-    public array $slugsNotInOpenAiGenerator = ['ai_chat_all', 'ai_editor', 'ai_writer', 'ai_social_media_extension', 'ext_chat_bot', 'brand_voice', 'photo_studio_extension'];
+    public array $slugsNotInOpenAiGenerator = [
+        'ai_chat_all',
+        'ai_editor',
+        'ai_writer',
+        'ai_social_media_extension',
+        'ext_chat_bot',
+        'brand_voice',
+        'photo_studio_extension',
+        'ai_vision',
+        'ai_product_shot',
+        'ai_image_generator',
+        'ai_video',
+        'seo_tool_extension',
+        'ai_voiceover',
+        'ai_pdf',
+        'ai_speech_to_text',
+        'ai_rewriter',
+        'ai_code_generator',
+        'ai_youtube',
+        'ai_chat_image',
+        'ai_rss',
+        'ai_voiceover_clone',
+        'ai_web_chat_extension',
+        'ai_realtime_voice_chat',
+        'ai_detector_extension',
+        'ai_plagiarism_extension',
+        'ai_article_wizard',
+        'ai_voice_isolator',
+        'ext_voice_chatbot',
+        'ext_social_media_dropdown',
+        'ai_influencer',
+        'creative_suite',
+        'url_to_video',
+        'viral_clips',
+        'influencer_avatar',
+        'brand_voice',
+        'support',
+    ];
 
     public function __construct()
     {

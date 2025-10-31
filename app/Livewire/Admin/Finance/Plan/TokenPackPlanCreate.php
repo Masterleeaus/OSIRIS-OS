@@ -80,6 +80,7 @@ class TokenPackPlanCreate extends Component
         if ($isSensitiveDataChanged) {
             PaymentProcessController::saveGatewayProducts($this->plan);
         }
+        Plan::forgetCache();
 
         return redirect(route('dashboard.admin.finance.plan.index'))->with([
             'message' => 'Plan successfully updated.',

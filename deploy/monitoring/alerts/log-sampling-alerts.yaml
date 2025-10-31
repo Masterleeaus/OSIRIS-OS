@@ -1,0 +1,195 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: log-sampling-alerts
+  namespace: monitoring
+  labels:
+    app: kube-prometheus-stack
+    release: prometheus-stack
+spec:
+  groups:
+  - name: log-sampling.rules
+    rules:
+    # High log drop rate
+    - alert: HighLogDropRate
+      expr: |
+        (
+          sum(rate(fluentbit_output_dropped_records_total{reason!~"retry_limit_exceeded|retry_failed"}[5m])) 
+          / 
+          sum(rate(fluentbit_input_records_total[5m]))
+        ) * 100 > 5
+      for: 10m
+      labels:
+        severity: critical
+        team: sre
+        category: logs
+      annotations:
+        summary: "High log drop rate detected ({{ $value | humanizePercentage }} of logs dropped)"
+        description: |
+          Log drop rate is {{ $value | humanizePercentage }} which is above the 5% threshold.
+          This may indicate sampling misconfiguration or capacity issues.
+          
+          **Affected Components:**
+          {{- range $label, $value := .Labels }}
+          - {{ $label }}: {{ $value }}
+          {{- end }}
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#highlogdroprate
+
+    # Sampling rule errors
+    - alert: SamplingRuleError
+      expr: |
+        sum(rate(log_sampling_errors_total[5m])) by (rule_name) > 0
+      for: 5m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Sampling rule error detected ({{ $labels.rule_name }})"
+        description: |
+          Error in sampling rule "{{ $labels.rule_name }}": {{ $value }} errors in the last 5 minutes.
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#samplingruleerror
+
+    # High memory usage in sampler
+    - alert: LogSamplerHighMemory
+      expr: |
+        (
+          container_memory_working_set_bytes{container="log-sampler"} 
+          / 
+          container_spec_memory_limit_bytes{container="log-sampler"}
+        ) * 100 > 80
+      for: 10m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "High memory usage in log sampler ({{ $value | humanizePercentage }} of limit)"
+        description: |
+          Log sampler is using {{ $value | humanizePercentage }} of its memory limit.
+          This may cause sampling delays or drops.
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#high-memory-usage
+
+    # Sampling rate too high
+    - alert: SamplingRateTooHigh
+      expr: |
+        (
+          sum(rate(fluentbit_output_processed_records_total[5m])) 
+          / 
+          sum(rate(fluentbit_input_records_total[5m]))
+        ) * 100 > 90
+      for: 15m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Sampling rate too high ({{ $value | humanizePercentage }} of logs kept)"
+        description: |
+          Effective sampling rate is {{ $value | humanizePercentage }} which may indicate
+          sampling rules are not effectively reducing log volume.
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#samplingratetoohigh
+
+    # Sampling rate too low
+    - alert: SamplingRateTooLow
+      expr: |
+        (
+          sum(rate(fluentbit_output_processed_records_total[5m])) 
+          / 
+          sum(rate(fluentbit_input_records_total[5m]))
+        ) * 100 < 1
+      for: 15m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Sampling rate too low ({{ $value | humanizePercentage }} of logs kept)"
+        description: |
+          Effective sampling rate is {{ $value | humanizePercentage }} which may cause
+          loss of important log data.
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#samplingratetoolow
+
+    # Log processor queue growing
+    - alert: LogQueueGrowing
+      expr: |
+        (
+          predict_linear(fluentbit_output_queue_size[10m], 3600) 
+          > 
+          scalar(quantile_over_time(0.95, fluentbit_output_queue_size[1d])) * 1.5
+        )
+        and
+        (
+          fluentbit_output_queue_size 
+          > 
+          scalar(quantile_over_time(0.95, fluentbit_output_queue_size[1d]))
+        )
+      for: 10m
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Log processing queue growing ({{ $value }} items)"
+        description: |
+          Log processing queue is growing and may lead to increased latency or drops.
+          Current queue size: {{ $value }}
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#logqueuegrowing
+
+    # Sampling configuration outdated
+    - alert: SamplingConfigOutdated
+      expr: |
+        time() - log_sampling_config_last_reload_seconds > 3600
+      for: 1h
+      labels:
+        severity: warning
+        team: sre
+        category: logs
+      annotations:
+        summary: "Sampling configuration is outdated ({{ $value | humanizeDuration }} old)"
+        description: |
+          The sampling configuration has not been reloaded in {{ $value | humanizeDuration }}.
+          This may indicate issues with the configuration reload mechanism.
+          
+          **Runbook:** https://internal-docs/runbooks/log-sampling#config-outdated
+
+  # Recording rules for better performance
+  - name: log-sampling.recording
+    interval: 1m
+    rules:
+    - record: log_sampling:dropped_records:rate5m
+      expr: |
+        sum(rate(fluentbit_output_dropped_records_total[5m]))
+        by (namespace, pod, reason)
+        
+    - record: log_sampling:input_records:rate5m
+      expr: |
+        sum(rate(fluentbit_input_records_total[5m]))
+        by (namespace, pod)
+        
+    - record: log_sampling:output_records:rate5m
+      expr: |
+        sum(rate(fluentbit_output_processed_records_total[5m]))
+        by (namespace, pod)
+        
+    - record: log_sampling:effective_rate
+      expr: |
+        (
+          log_sampling:output_records:rate5m
+          /
+          log_sampling:input_records:rate5m
+        ) * 100
+        
+    - record: log_sampling:drop_rate
+      expr: |
+        (
+          log_sampling:dropped_records:rate5m
+          /
+          log_sampling:input_records:rate5m
+        ) * 100

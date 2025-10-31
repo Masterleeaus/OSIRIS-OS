@@ -8,6 +8,7 @@ use App\Domains\Entity\Contracts\Calculate\WithImagesInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImageToVideoInterface;
 use App\Domains\Entity\Contracts\Calculate\WithMinuteInterface;
 use App\Domains\Entity\Contracts\Calculate\WithPlagiarismInterface;
+use App\Domains\Entity\Contracts\Calculate\WithPresentationInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSecondInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSpeechToTextInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToSpeechInterface;
@@ -79,6 +80,7 @@ test('total default models credits for current user', function ($increase, $type
     WithCharsInterface::class,
     WithMinuteInterface::class,
     WithSecondInterface::class,
+    WithPresentationInterface::class,
     WithImagesInterface::class,
     WithImageToVideoInterface::class,
     WithWordsInterface::class,

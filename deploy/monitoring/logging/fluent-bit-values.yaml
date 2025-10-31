@@ -1,0 +1,403 @@
+# Fluent Bit configuration for Kubernetes
+nameOverride: fluent-bit
+fullnameOverride: fluent-bit
+
+# Container image
+image:
+  repository: fluent/fluent-bit
+  tag: 2.1.9
+  pullPolicy: IfNotPresent
+
+# Fluent Bit configuration
+config:
+  # Fluent Bit main configuration
+  service: |
+    [SERVICE]
+        Flush           5
+        Daemon          Off
+        Log_Level       info
+        Parsers_File    parsers.conf
+        Parsers_File    custom_parsers.conf
+        HTTP_Server     On
+        HTTP_Listen     0.0.0.0
+        HTTP_Port       2020
+        Health_Check    On
+        # Disable built-in metrics
+        Metrics         Off
+
+  # Custom parsers for application logs
+  customParsers: |
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+        # Command   |  Decoder | Field | Optional Action
+        # ==========|===================
+        Decode_Field_As   escaped_utf8    log    do_next
+        Decode_Field_As   json       log    
+
+    [PARSER]
+        Name        cri
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<stream>stdout|stderr) (?<logtag>[^ ]*) (?<log>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L%z
+        Time_Keep   On
+        Decode_Field_As   escaped_utf8    log    do_next
+        Decode_Field_As   json       log
+
+    # Custom parser for quantum-node logs
+    [PARSER]
+        Name        quantum
+        Format      regex
+        Regex       ^(?<time>[^ ]+) (?<level>\w+) \[(?<thread>[^\]]+)\] (?<logger>[^ ]+) - (?<message>.*)$
+        Time_Key    time
+        Time_Format %Y-%m-%d %H:%M:%S.%L
+        Time_Keep   On
+
+  # Input configuration
+  inputs: |
+    [INPUT]
+        Name             tail
+        Tag              kube.*
+        Path             /var/log/containers/*.log
+        Parser           docker
+        DB               /var/log/flb_kube.db
+        Mem_Buf_Limit    50MB
+        Skip_Long_Lines  On
+        Refresh_Interval 10
+        Read_from_Head   True
+        Docker_Mode      On
+        Docker_Mode_Flush 4
+        Docker_Mode_Parser_Firstline cri
+        Docker_Mode_Parser_1 docker
+        Docker_Mode_Parser_2 cri
+        Docker_Mode_Parser_3 quantum
+        Buffer_Chunk_Size 1M
+        Buffer_Max_Size   5M
+        Skip_Long_Lines   On
+        Ignore_Older      1h
+
+    [INPUT]
+        Name             systemd
+        Tag              host.*
+        Systemd_Filter   _SYSTEMD_UNIT=kubelet.service
+        Systemd_Filter   _SYSTEMD_UNIT=containerd.service
+        Read_From_Tail   On
+        Strip_Underscores On
+        DB               /var/log/flb_systemd.db
+        DB.Sync          Normal
+        Mem_Buf_Limit    10MB
+        Parser           systemd
+
+  # Filter configuration
+  filters: |
+    # Kubernetes filter to enrich logs with metadata
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Kube_URL            https://kubernetes.default.svc:443
+        Kube_CA_File        /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        Kube_Token_File     /var/run/secrets/kubernetes.io/serviceaccount/token
+        Kube_Tag_Prefix     kube.var.log.containers.
+        Merge_Log           On
+        Merge_Log_Key       log_processed
+        K8s-Logging.Parser  On
+        K8s-Logging.Exclude Off
+        Labels              On
+        Annotations         On
+        Use_Kubelet         true
+        Kubelet_Port        10250
+        Buffer_Size         1MB
+        # Cache
+        Kube_Meta_Cache_TTL 3600
+        Kube_meta_preload_cache_dir /var/log/flb-kube-meta-cache/
+        # Extra metadata to include
+        Kube_meta_preload_cache_use_pod_uid true
+        Kube_meta_preload_cache_dir /var/log/flb-kube-meta-cache/
+        Kube_meta_include_label_as_metadata app,app.kubernetes.io/name,app.kubernetes.io/instance,app.kubernetes.io/component
+        Kube_meta_include_annotation_as_metadata prometheus.io/scrape,prometheus.io/port,fluentbit.io/parser
+
+    # Record modifier to add cluster name
+    [FILTER]
+        Name        record_modifier
+        Match       *
+        Record      cluster_name quantum-infra-zero
+        Record      environment ${ENVIRONMENT:-development}
+        Record      region ${REGION:-unknown}
+
+    # Parse JSON logs
+    [FILTER]
+        Name        parser
+        Match       kube.*
+        Key_Name    log
+        Parser      docker
+        Reserve_Data On
+        Preserve_Key On
+        Unescaped_Key_Value On
+
+    # Parse quantum-node logs with custom parser
+    [FILTER]
+        Name        parser
+        Match       kube.*quantum-node*
+        Key_Name    log
+        Parser      quantum
+        Reserve_Data On
+        Preserve_Key On
+        Unescaped_Key_Value On
+
+  # Output configuration
+  outputs: |
+    [OUTPUT]
+        Name            loki
+        Match           kube.*
+        Host            ${LOKI_SERVICE_HOST}
+        Port            ${LOKI_SERVICE_PORT_HTTP}
+        Labels          {job="fluent-bit"}
+        LabelKeys       container_name,pod_name,namespace_name,pod_id,host,app,app_kubernetes_io_name,app_kubernetes_io_component
+        RemoveKeys      kubernetes,stream,hostname
+        Line_Format     json
+        Drop_Single_Key On
+        Auto_Kubernetes_Labels On
+        Labels_List     {"app"="$kubernetes['labels']['app']", "component"="$kubernetes['labels']['app.kubernetes.io/component']"}
+        # Batch options
+        Batch_Size      1M
+        Batch_Wait      1s
+        # Retry options
+        Retry_Limit     5
+        Retry_Limit_Interval 10s
+
+# Enable metrics
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    additionalLabels:
+      release: monitoring
+    interval: 15s
+    scrapeTimeout: 10s
+
+# Configure resources
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Configure volumes
+volumeMounts:
+  - name: varlog
+    mountPath: /var/log
+  - name: varlibdockercontainers
+    mountPath: /var/lib/docker/containers
+    readOnly: true
+  - name: fluentbitstate
+    mountPath: /var/log/flb-storage/
+  - name: dockersock
+    mountPath: /var/run/docker.sock
+
+volumes:
+  - name: varlog
+    hostPath:
+      path: /var/log
+  - name: varlibdockercontainers
+    hostPath:
+      path: /var/lib/docker/containers
+  - name: fluentbitstate
+    hostPath:
+      path: /var/log/fluentbit/
+  - name: dockersock
+    hostPath:
+      path: /var/run/docker.sock
+
+# Configure affinity and node selectors
+affinity: {}
+nodeSelector: {}
+tolerations: []
+
+# Configure environment variables
+env:
+  - name: NODE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: spec.nodeName
+  - name: NAMESPACE
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.namespace
+  - name: POD_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+  - name: POD_IP
+    valueFrom:
+      fieldRef:
+        fieldPath: status.podIP
+
+# Configure service account
+serviceAccount:
+  create: true
+  annotations: {}
+  name: fluent-bit
+
+# Configure RBAC
+rbac:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources:
+        - namespaces
+        - pods
+        - pods/logs
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["extensions", "apps"]
+      resources:
+        - deployments
+        - replicasets
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources:
+        - jobs
+      verbs: ["get", "list", "watch"]
+    - apiGroups: [""]
+      resources:
+        - configmaps
+      verbs: ["get", "list", "watch"]
+
+# Configure liveness and readiness probes
+livenessProbe:
+  httpGet:
+    path: /api/v1/health
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /api/v1/health
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# Configure security context
+securityContext:
+  runAsUser: 0
+  fsGroup: 0
+  runAsNonRoot: false
+
+# Configure pod security context
+podSecurityContext: {}
+
+# Configure pod annotations
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "2020"
+  prometheus.io/path: "/api/v1/metrics/prometheus"
+
+# Configure service
+service:
+  type: ClusterIP
+  port: 2020
+  annotations: {}
+
+# Configure autoscaling
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+# Configure priority class
+priorityClassName: ""
+
+# Configure topology spread constraints
+topologySpreadConstraints: []
+
+# Configure pod disruption budget
+podDisruptionBudget: {}
+
+# Configure service monitor
+serviceMonitor:
+  enabled: true
+  namespace: monitoring
+  additionalLabels:
+    release: monitoring
+  interval: 15s
+  scrapeTimeout: 10s
+  path: /api/v1/metrics/prometheus
+  port: http-metrics
+
+# Configure prometheus rule
+prometheusRule:
+  enabled: true
+  additionalLabels:
+    release: monitoring
+  rules:
+    - alert: FluentBitHighErrorRate
+      expr: sum(rate(fluentbit_output_retries_failed_total[5m])) by (name) / sum(rate(fluentbit_output_proc_records_total[5m])) by (name) > 0.01
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High error rate in Fluent Bit output {{ $labels.name }}"
+        description: "Fluent Bit output {{ $labels.name }} has a high error rate: {{ $value | humanizePercentage }}"
+    
+    - alert: FluentBitBufferFull
+      expr: fluentbit_storage_backlog > 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Fluent Bit buffer is full"
+        description: "Fluent Bit buffer for {{ $labels.name }} is full, some logs may be lost"
+
+# Configure extra volumes
+extraVolumes: []
+extraVolumeMounts: []
+
+# Configure extra environment variables
+extraEnvs: []
+
+# Configure pod security policy
+podSecurityPolicy:
+  enabled: false
+  annotations: {}
+  name: fluent-bit
+  spec:
+    privileged: false
+    fsGroup:
+      rule: RunAsAny
+    runAsUser:
+      rule: RunAsAny
+    seLinux:
+      rule: RunAsAny
+    supplementalGroups:
+      rule: RunAsAny
+    volumes:
+      - configMap
+      - emptyDir
+      - hostPath
+      - secret
+    hostNetwork: false
+    hostIPC: false
+    hostPID: false
+    readOnlyRootFilesystem: false
+    allowPrivilegeEscalation: false
+    defaultAllowPrivilegeEscalation: false
+    allowedHostPaths:
+      - pathPrefix: /var/log
+        readOnly: true
+      - pathPrefix: /var/lib/docker/containers
+        readOnly: true
+      - pathPrefix: /var/log/flb-storage
+        readOnly: false

@@ -38,7 +38,7 @@
             <hr class="mt-0">
             <li class="flex px-1">
                 <p class="grow text-start">{{ __('Tax') }} ({{ $taxRate ?? 0 }}% VAT)</p>
-                <p class="whitespace-nowrap text-end">{!! displayCurr(currency()->symbol, $taxValue ?? null, tax_included: $plan->price_tax_included) !!}</p>
+                <p class="whitespace-nowrap text-end">{!! displayCurr(currency()->symbol, $taxValue ?? 0, tax_included: $plan->price_tax_included) !!}</p>
             </li>
             <hr class="mt-0">
             <li class="flex px-1">

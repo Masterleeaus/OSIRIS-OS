@@ -115,34 +115,22 @@ export default ( { mode } ) => {
 	// Load app-level env vars to node-level env vars.
 	process.env = { ...process.env, ...loadEnv( mode, process.cwd() ) };
 
-	const platform = process.env.PLATFORM || 'web';
-	const isDesktop = [ 'macos', 'windows', 'linux' ].includes( platform );
-	const isMobile = [ 'ios', 'aurora' ].includes( platform );
-
-	let buildConfig = {
-		rollupOptions: {
-			output: {
-				entryFileNames: 'assets/[name]-[hash].js',
-				chunkFileNames: 'assets/[name]-[hash].js',
-				assetFileNames: 'assets/[name]-[hash].[ext]',
-			}
-		}
-	};
-
-	if ( isDesktop ) {
-		buildConfig.outDir = `dist-${ platform }`;
-		buildConfig.rollupOptions.external = [ 'electron' ];
-	} else if ( isMobile ) {
-		buildConfig.outDir = `dist-${ platform }`;
-		buildConfig.rollupOptions.output.format = 'es';
-	} else {
-		buildConfig.outDir = 'dist';
-	}
-
 	return defineConfig( {
 		server: detectServerConfig( process.env.VITE_APP_DOMAIN || 'magicai.test' ),
 		plugins,
-		build: buildConfig,
+		build: {
+			rollupOptions: {
+				output: {
+					entryFileNames: 'assets/[name]-[hash].js',
+					chunkFileNames: 'assets/[name]-[hash].js',
+					assetFileNames: 'assets/[name]-[hash].[ext]',
+					// manualChunks: {
+					// All files will be bundled into a single file
+					//     'app': themeAppJsFiles
+					// }
+				}
+			}
+		},
 		resolve: {
 			alias: {
 				'@': '/resources/js',

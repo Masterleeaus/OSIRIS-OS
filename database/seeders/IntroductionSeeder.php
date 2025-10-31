@@ -27,7 +27,7 @@ class IntroductionSeeder extends Seeder
             ],
             [
                 'key'   => 'ai_image',
-                'intro' => 'A great tool for using the Text Generator & AI Copywriting Assistant.',
+                'intro' => 'Create stunning images with just a few words.',
                 'order' => 3,
             ],
             [

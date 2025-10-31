@@ -1,0 +1,189 @@
+# Default values for quantum-infra-zero
+replicaCount: 3
+
+image:
+  repository: rechain/quantum-node
+  pullPolicy: IfNotPresent
+  tag: "0.1.0"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+# Node configuration
+node:
+  id: ""  # Auto-generated if empty
+  port: 8000
+  environment: production
+  logLevel: info
+  
+  # Resource limits and requests
+  resources:
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+
+# DIDN (Distributed Identity & Data Network) configuration
+didn:
+  storageClass: ""  # Use default storage class if empty
+  storageSize: "10Gi"
+  
+  # Encryption settings
+  encryption:
+    enabled: true
+    key: ""  # Auto-generated if empty
+
+# QMP (Quantum Mesh Protocol) configuration
+qmp:
+  # Network configuration
+  networkId: "quantum-mainnet"
+  port: 8000
+  
+  # Discovery settings
+  discovery:
+    enabled: true
+    bootstrapNodes: []
+  
+  # Transport security
+  tls:
+    enabled: true
+    autoGenerate: true
+    secretName: "qmp-tls"
+
+# AI Node configuration
+aiNode:
+  enabled: true
+  modelStorageSize: "20Gi"
+  
+  # Federated learning settings
+  federatedLearning:
+    enabled: true
+    aggregationInterval: "5m"
+    maxPeers: 50
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  # Prometheus Operator integration
+  prometheus:
+    enabled: true
+    scrapeInterval: 15s
+    
+  # Grafana dashboards
+  grafana:
+    enabled: true
+    dashboardProviders:
+      dashboardproviders.yaml:
+        apiVersion: 1
+        providers:
+        - name: 'quantum'
+          orgId: 1
+          folder: 'Quantum Infrastructure'
+          type: file
+          disableDeletion: false
+          editable: true
+          options:
+            path: /var/lib/grafana/dashboards/quantum
+    
+    dashboards:
+      quantum-node:
+        gnetId: 1860
+        revision: 1
+        datasource: Prometheus
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 10Gi
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8000
+  
+  # For NodePort or LoadBalancer
+  nodePort: ""
+  loadBalancerIP: ""
+  
+  # For external access
+  externalPort: 8000
+  
+  # Annotations for cloud providers
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: quantum.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# Autoscaling configuration
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 70
+
+# Pod configuration
+podAnnotations: {}
+podSecurityContext: {}
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 2000
+
+# Affinity and anti-affinity rules
+affinity: {}
+
+# Tolerations for node taints
+tolerations: []
+
+# Node selector for pod assignment
+nodeSelector: {}
+
+# Additional environment variables
+env: []
+
+# Additional volumes and volume mounts
+volumes: []
+volumeMounts: []
+
+# Custom configuration files
+configMaps: {}
+secrets: {}
+
+# Backup configuration
+backup:
+  enabled: true
+  schedule: "0 2 * * *"  # Daily at 2 AM
+  retention: 30d
+  storageClass: ""
+  storageSize: "50Gi"
+
+# Disaster recovery configuration
+disasterRecovery:
+  enabled: true
+  snapshotInterval: 24h
+  maxSnapshots: 7
+  s3:
+    enabled: false
+    bucket: ""
+    region: ""
+    accessKeyId: ""
+    secretAccessKey: ""

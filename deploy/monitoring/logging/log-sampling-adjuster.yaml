@@ -1,0 +1,274 @@
+---
+# ConfigMap for sampling adjustment rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-rules
+  namespace: monitoring
+data:
+  rules.yaml: |
+    # Default sampling rules
+    default_sample_rate: 0.1  # 10% sampling by default
+    
+    # Rules are evaluated in order, first match wins
+    rules:
+      # High-priority logs (keep all)
+      - name: keep-errors
+        selector:
+          log_level: error
+        sample_rate: 1.0
+        min_sample_rate: 0.5  # Never go below 50% for errors
+        
+      # Application logs
+      - name: app-logs
+        selector:
+          app: myapp
+        base_sample_rate: 0.2
+        max_sample_rate: 0.5
+        min_sample_rate: 0.05
+        adjustment:
+          # Increase sampling if error rate > 1%
+          - condition: error_rate > 1
+            action: increase
+            factor: 1.5
+            max: 0.5
+          # Decrease sampling if error rate < 0.1%
+          - condition: error_rate < 0.1
+            action: decrease
+            factor: 0.8
+            min: 0.05
+          
+      # Debug logs (sample heavily)
+      - name: debug-logs
+        selector:
+          log_level: debug
+        sample_rate: 0.01
+        min_sample_rate: 0.001
+        max_sample_rate: 0.1
+        
+      # Health checks (sample heavily)
+      - name: health-checks
+        selector:
+          path: /health
+        sample_rate: 0.01
+        
+      # API requests (sample based on latency)
+      - name: api-requests
+        selector:
+          component: api-gateway
+        base_sample_rate: 0.1
+        adjustment:
+          # Sample more if p99 latency > 500ms
+          - condition: p99_latency > 500
+            action: increase
+            factor: 2
+            max: 0.5
+          # Sample less if p99 latency < 100ms
+          - condition: p99_latency < 100
+            action: decrease
+            factor: 0.5
+            min: 0.01
+
+---
+# Service account for sampling adjuster
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: log-sampling-adjuster
+  namespace: monitoring
+
+---
+# Role for accessing Prometheus metrics
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: log-sampling-adjuster
+  namespace: monitoring
+rules:
+- apiGroups: [""]
+  resources: ["configmaps"]
+  verbs: ["get", "update", "patch"]
+- apiGroups: ["monitoring.coreos.com"]
+  resources: ["prometheusrules"]
+  verbs: ["get", "list", "watch"]
+
+---
+# Role binding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: log-sampling-adjuster
+  namespace: monitoring
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: log-sampling-adjuster
+subjects:
+- kind: ServiceAccount
+  name: log-sampling-adjuster
+  namespace: monitoring
+
+---
+# CronJob for automatic sampling rate adjustment
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: log-sampling-adjuster
+  namespace: monitoring
+spec:
+  schedule: "*/5 * * * *"  # Run every 5 minutes
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: log-sampling-adjuster
+          containers:
+          - name: adjuster
+            image: python:3.9-slim
+            command: ["/bin/sh", "-c"]
+            args:
+            - |
+              #!/bin/sh
+              set -e
+              
+              # Install dependencies
+              pip install kubernetes prometheus-client pyyaml
+              
+              # Run the adjustment script
+              python3 /adjust-sampling-rates.py
+              
+            volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /adjust-sampling-rates.py
+              subPath: adjust-sampling-rates.py
+          restartPolicy: OnFailure
+          volumes:
+          - name: config
+            configMap:
+              name: log-sampling-rules
+          - name: scripts
+            configMap:
+              name: log-sampling-scripts
+              defaultMode: 0755
+
+---
+# Script for adjusting sampling rates
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-scripts
+  namespace: monitoring
+data:
+  adjust-sampling-rates.py: |
+    #!/usr/bin/env python3
+    import os
+    import yaml
+    import json
+    import time
+    from datetime import datetime, timedelta
+    from kubernetes import client, config
+    from prometheus_api_client import PrometheusConnect
+    
+    # Configuration
+    PROMETHEUS_URL = os.getenv('PROMETHEUS_URL', 'http://prometheus-operated.monitoring:9090')
+    NAMESPACE = os.getenv('NAMESPACE', 'monitoring')
+    CONFIG_MAP = 'log-sampling-rules'
+    
+    def load_rules():
+        """Load sampling rules from ConfigMap"""
+        v1 = client.CoreV1Api()
+        cm = v1.read_namespaced_config_map(CONFIG_MAP, NAMESPACE)
+        return yaml.safe_load(cm.data['rules.yaml'])
+    
+    def update_rules(rules):
+        """Update sampling rules in ConfigMap"""
+        v1 = client.CoreV1Api()
+        cm = v1.read_namespaced_config_map(CONFIG_MAP, NAMESPACE)
+        cm.data['rules.yaml'] = yaml.dump(rules)
+        v1.replace_namespaced_config_map(CONFIG_MAP, NAMESPACE, cm)
+    
+    def get_metrics(prom, query):
+        """Query Prometheus for metrics"""
+        try:
+            result = prom.custom_query(query)
+            return float(result[0]['value'][1]) if result else 0.0
+        except Exception as e:
+            print(f"Error querying metrics: {e}")
+            return 0.0
+    
+    def adjust_sample_rates():
+        """Adjust sampling rates based on metrics"""
+        # Initialize Kubernetes and Prometheus clients
+        config.load_incluster_config()
+        prom = PrometheusConnect(url=PROMETHEUS_URL, disable_ssl=True)
+        
+        # Load current rules
+        rules = load_rules()
+        
+        # Process each rule with adjustments
+        for rule in rules.get('rules', []):
+            if 'adjustment' not in rule:
+                continue
+                
+            # Get current metrics
+            selector = ",".join(f"{k}=\"{v}\"" for k, v in rule.get('selector', {}).items())
+            
+            # Calculate error rate (if needed)
+            if any('error_rate' in adj.get('condition', '') for adj in rule['adjustment']):
+                total_logs = get_metrics(
+                    prom,
+                    f'sum(rate(fluentbit_input_records_total{{{selector}}}[5m]))'
+                )
+                error_logs = get_metrics(
+                    prom,
+                    f'sum(rate(fluentbit_input_records_total{{{selector}, log_level="error"}}[5m]))'
+                )
+                error_rate = (error_logs / total_logs * 100) if total_logs > 0 else 0
+            
+            # Calculate latency (if needed)
+            if any('p99_latency' in adj.get('condition', '') for adj in rule['adjustment']):
+                p99_latency = get_metrics(
+                    prom,
+                    f'histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{{{selector}}}[5m])) by (le)) * 1000'
+                )
+            
+            # Apply adjustments
+            current_rate = rule.get('sample_rate', rule.get('base_sample_rate', rules['default_sample_rate']))
+            new_rate = current_rate
+            
+            for adj in rule['adjustment']:
+                condition = adj.get('condition', '')
+                try:
+                    if eval(condition, {
+                        'error_rate': error_rate,
+                        'p99_latency': p99_latency
+                    }):
+                        if adj['action'] == 'increase':
+                            new_rate = min(current_rate * adj['factor'], adj.get('max', 1.0))
+                        elif adj['action'] == 'decrease':
+                            new_rate = max(current_rate * adj['factor'], adj.get('min', 0.0))
+                        break
+                except Exception as e:
+                    print(f"Error evaluating condition {condition}: {e}")
+            
+            # Apply min/max bounds
+            if 'min_sample_rate' in rule:
+                new_rate = max(new_rate, rule['min_sample_rate'])
+            if 'max_sample_rate' in rule:
+                new_rate = min(new_rate, rule['max_sample_rate'])
+            
+            # Update rule if rate changed
+            if new_rate != current_rate:
+                print(f"Adjusting {rule['name']} sampling rate from {current_rate:.2f} to {new_rate:.2f}")
+                rule['sample_rate'] = new_rate
+        
+        # Save updated rules
+        update_rules(rules)
+    
+    if __name__ == "__main__":
+        print(f"{datetime.now()} - Starting sampling rate adjustment")
+        adjust_sample_rates()
+        print(f"{datetime.now()} - Sampling rate adjustment complete")

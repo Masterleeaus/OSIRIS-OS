@@ -59,6 +59,7 @@ class SubscriptionPlanCreate extends Component
             'plan.price_tax_included'            => 'required_if:step,1|nullable|boolean',
             'plan.plan_allow_seat'               => 'nullable|numeric|min:0',
             'plan.trial_days'                    => 'required_if:step,1|numeric|min:0',
+            'plan.affiliate_status'              => 'nullable|boolean',
             'plan.is_featured'                   => 'required_if:step,1|nullable|boolean',
             'plan.user_api'                      => 'required_if:step,1|nullable|boolean',
             'plan.plan_type'                     => 'required_if:step,1|in:' . implode(',', AccessType::getValues()),
@@ -149,6 +150,7 @@ class SubscriptionPlanCreate extends Component
             PaymentProcessController::saveGatewayProducts($this->plan, $this->gatewaysToCreatePriceIds);
         }
         app(MenuService::class)->regenerate();
+        Plan::forgetCache();
 
         return redirect(route('dashboard.admin.finance.plan.index'))->with([
             'message' => 'Plan ' . $this->plan->name . ' successfully.',

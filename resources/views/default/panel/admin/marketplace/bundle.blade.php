@@ -1,22 +1,22 @@
 @php
-    $price_details = [
-        [
-            'label' => 'License',
-            'value' => 'Lifetime',
-        ],
-        [
-            'label' => 'Support & Updates',
-            'value' => '6 months',
-        ],
-        [
-            'label' => 'Installation',
-            'value' => 'One Click',
-        ],
-        [
-            'label' => 'Recently Updated',
-            'value' => 'Yes',
-        ],
-    ];
+	$price_details = [
+		[
+			'label' => 'Free Updates',
+			'value' => 'Lifetime',
+		],
+		[
+			'label' => 'License',
+			'value' => 'Lifetime',
+		],
+		[
+			'label' => 'Support',
+			'value' => '6 months',
+		],
+		[
+			'label' => 'Installation',
+			'value' => 'One Click',
+		],
+	];
 @endphp
 
 @extends('panel.layout.app', ['disable_tblr' => true])

@@ -27,12 +27,24 @@ enum AITokenType: string implements Contracts\WithStringBackedEnum
     case VISION = 'vision';
     case PLAGIARISM = 'plagiarism';
 
+    case PRESENTATION = 'presentation';
+
     public function label(): string
     {
         return match ($this) {
-            self::WORD   => __('Word'),
-            self::IMAGE  => __('Image'),
-            self::SECOND => __('Second'),
+            self::WORD           => __('Word'),
+            self::IMAGE          => __('Image'),
+            self::SECOND         => __('Second'),
+            self::MINUTE         => __('Minute'),
+            self::CHARACTER      => __('Character'),
+            self::IMAGE_TO_VIDEO => __('Image to Video'),
+            self::TEXT_TO_SPEECH => __('Text to Speech'),
+            self::SPEECH_TO_TEXT => __('Speech to Text'),
+            self::TEXT_TO_VIDEO  => __('Text to Video'),
+            self::VIDEO_TO_VIDEO => __('Video to Video'),
+            self::VISION         => __('Vision'),
+            self::PLAGIARISM     => __('Plagiarism'),
+            self::PRESENTATION   => __('Presentation'),
         };
     }
 }

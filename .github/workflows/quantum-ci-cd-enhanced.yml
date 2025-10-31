@@ -1,0 +1,284 @@
+name: Quantum Infrastructure CI/CD Enhanced
+
+on:
+  push:
+    branches: [ main, develop, 'feature/*' ]
+    paths:
+      - 'src/**'
+      - 'deploy/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'requirements*.txt'
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+      strategy:
+        description: 'Deployment strategy'
+        required: false
+        default: 'canary'
+        type: choice
+        options:
+        - canary
+        - blue-green
+        - rolling
+
+env:
+  DOCKER_IMAGE: ghcr.io/${{ github.repository }}/quantum-node
+  HELM_VERSION: 3.14.0
+  KUBE_VERSION: 1.28.0
+  PYTHON_VERSION: '3.10'
+  DOCKER_BUILDKIT: 1
+  
+  # Feature flags
+  FEATURE_FLAG_MANAGER: true
+  ENABLE_CHAOS_TESTING: false
+  ENABLE_PERFORMANCE_TESTING: true
+
+jobs:
+  # Previous jobs (test, build) remain the same...
+  
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Run Trivy vulnerability scanner
+      uses: aquasecurity/trivy-action@master
+      with:
+        image-ref: ${{ env.DOCKER_IMAGE }}:sha-${{ github.sha }}
+        format: 'sarif'
+        output: 'trivy-results.sarif'
+        severity: 'CRITICAL,HIGH'
+    
+    - name: Upload Trivy scan results
+      uses: github/codeql-action/upload-sarif@v2
+      with:
+        sarif_file: 'trivy-results.sarif'
+    
+    - name: Run Bandit (Python security)
+      run: |
+        pip install bandit
+        bandit -r src/ -f json -o bandit-results.json || true
+    
+    - name: Run Kubesec
+      uses: controlplaneio/kubectl-kubesec/v2@v2.11.1
+      with:
+        kubeconfig: ${{ secrets.KUBECONFIG }}
+        path: 'deploy/helm/quantum-infra-zero/templates/*.yaml'
+  
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [build, security-scan]
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    strategy:
+      matrix:
+        strategy: ['canary', 'blue-green', 'rolling']
+      fail-fast: false
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Kubernetes tools
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ env.KUBE_VERSION }}
+    
+    - name: Deploy with ${{ matrix.strategy }} strategy
+      uses: ./.github/actions/deploy
+      with:
+        environment: staging
+        strategy: ${{ matrix.strategy }}
+        image-tag: ${{ github.sha }}
+    
+    - name: Run integration tests
+      run: |
+        # Run integration tests against staging
+        pytest tests/integration/test_staging.py -v
+    
+    - name: Run performance tests
+      if: env.ENABLE_PERFORMANCE_TESTING == 'true'
+      uses: k6io/action@v0.3.0
+      with:
+        filename: tests/performance/load-test.js
+        flags: '--vus 10 --duration 30s'
+    
+    - name: Run chaos tests
+      if: env.ENABLE_CHAOS_TESTING == 'true'
+      run: |
+        # Run chaos engineering tests using Litmus or Gremlin
+        echo "Running chaos tests..."
+  
+  deploy-production:
+    name: Deploy to Production
+    needs: [deploy-staging, security-scan]
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Setup Kubernetes tools
+      uses: azure/setup-helm@v3
+      with:
+        version: ${{ env.HELM_VERSION }}
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: ${{ env.KUBE_VERSION }}
+    
+    - name: Deploy with canary strategy
+      uses: ./.github/actions/deploy
+      with:
+        environment: production
+        strategy: canary
+        image-tag: ${{ github.sha }}
+        canary-percentage: 10
+    
+    - name: Run canary tests
+      run: |
+        # Run canary-specific tests
+        pytest tests/integration/test_canary.py -v
+    
+    - name: Monitor canary metrics
+      run: |
+        # Monitor error rates, latency, etc.
+        echo "Monitoring canary metrics..."
+    
+    - name: Promote canary to full deployment
+      if: success()
+      run: |
+        # Scale up canary to 100%
+        kubectl scale deployment quantum-node-canary -n production --replicas=3
+        # Update the main service to point to canary
+        kubectl patch svc quantum-node -n production -p '{"spec":{"selector":{"app.kubernetes.io/instance":"quantum-node-canary"}}}'
+    
+    - name: Rollback on failure
+      if: failure()
+      run: |
+        # Rollback to previous version
+        helm rollback quantum-node -n production
+  
+  monitoring:
+    name: Monitoring and Alerting
+    needs: [deploy-staging, deploy-production]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy monitoring stack
+      run: |
+        # Deploy Prometheus, Grafana, and Alertmanager
+        helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+        helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+          --create-namespace \
+          --namespace monitoring \
+          --values deploy/monitoring/values.yaml
+    
+    - name: Configure alerts
+      run: |
+        # Apply custom alert rules
+        kubectl apply -f deploy/monitoring/alerts/
+    
+    - name: Deploy logging stack
+      run: |
+        # Deploy EFK or Loki stack
+        helm upgrade --install loki grafana/loki-stack \
+          --namespace monitoring \
+          --set promtail.enabled=true \
+          --set loki.persistence.enabled=true \
+          --set loki.persistence.size=10Gi
+  
+  disaster-recovery:
+    name: Disaster Recovery
+    needs: [deploy-production]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Create backup
+      run: |
+        # Create etcd backup
+        kubectl exec -n kube-system etcd-$(kubectl get pods -n kube-system | grep etcd | awk '{print $1}') -- sh -c "ETCDCTL_API=3 etcdctl \
+          --cert=/etc/kubernetes/pki/etcd/peer.crt \
+          --key=/etc/kubernetes/pki/etcd/peer.key \
+          --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+          snapshot save /backup/etcd-snapshot-$(date +%Y%m%d).db"
+        
+        # Backup persistent volumes
+        # ...
+    
+    - name: Test restore procedure
+      run: |
+        # Test restoring from backup
+        echo "Testing restore procedure..."
+        # ...
+    
+    - name: Schedule regular backups
+      run: |
+        # Create a CronJob for regular backups
+        kubectl apply -f deploy/backup/cronjob.yaml
+
+  # Post-deployment checks
+  post-deployment:
+    name: Post-Deployment Checks
+    needs: [deploy-production, monitoring, disaster-recovery]
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Run smoke tests
+      run: |
+        # Run smoke tests against production
+        pytest tests/smoke/test_production.py -v
+    
+    - name: Check application health
+      run: |
+        # Check all pods are running
+        kubectl get pods -n production
+        
+        # Check service endpoints
+        # ...
+    
+    - name: Generate deployment report
+      run: |
+        # Generate a deployment report
+        echo "# Deployment Report" > deployment-report.md
+        echo "- Version: ${{ github.sha }}" >> deployment-report.md
+        echo "- Status: Success" >> deployment-report.md
+        echo "- Timestamp: $(date)" >> deployment-report.md
+        # Add more deployment metrics
+        
+        # Upload as artifact
+        mkdir -p ./artifacts
+        cp deployment-report.md ./artifacts/
+      
+    - name: Upload deployment report
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-report
+        path: ./artifacts/deployment-report.md
+        retention-days: 7
+
+# Reusable workflow for deployments
+# .github/workflows/deploy.yml
+# This can be referenced by other workflows for consistent deployments

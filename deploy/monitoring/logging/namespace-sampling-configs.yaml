@@ -1,0 +1,383 @@
+---
+# Default sampling configuration for all namespaces
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-defaults
+  namespace: monitoring
+data:
+  default-sampling.conf: |
+    # Default sampling rate (10%)
+    [SAMPLER]
+        Name          sampling
+        Match         *
+        Sample        1 10
+        MinSamples    10
+        MaxSamples    1000
+        Interval      60
+        Rules         /fluent-bit/etc/sampling-rules/default-rules.yaml
+
+  default-rules.yaml: |
+    # Default sampling rules (applied to all logs not matching other rules)
+    - name: default-errors
+      condition: $log_level == "error" || $log_level == "ERROR" || $log_level == "Error"
+      sample_rate: 1.0  # Keep all errors
+      
+    - name: default-debug
+      condition: $log_level == "debug" || $log_level == "DEBUG" || $log_level == "Debug"
+      sample_rate: 0.01  # Sample debug logs heavily (1%)
+      
+    - name: default-info
+      condition: $log_level == "info" || $log_level == "INFO" || $log_level == "Info"
+      sample_rate: 0.1  # Sample info logs moderately (10%)
+
+---
+# Production namespace sampling configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-prod
+  namespace: monitoring
+data:
+  prod-sampling.conf: |
+    [SAMPLER]
+        Name          sampling
+        Match         kube.prod-*
+        Sample        1 5  # 20% sampling by default in prod
+        MinSamples    50
+        MaxSamples    10000
+        Interval      30
+        Rules         /fluent-bit/etc/sampling-rules/prod-rules.yaml
+
+  prod-rules.yaml: |
+    # Production-specific sampling rules
+    - name: prod-errors
+      condition: $log_level =~ /error|ERROR|Error|exception|Exception|fail|Fail|fatal|Fatal|critical|Critical/
+      sample_rate: 1.0  # Keep all errors
+      
+    - name: prod-audit
+      condition: $log =~ "audit" || $log =~ "AUDIT" || $log =~ "Audit"
+      sample_rate: 1.0  # Keep all audit logs
+      
+    - name: prod-http
+      condition: $log =~ "HTTP/" || $log =~ " http_status="
+      sample_rate: 0.5  # Sample HTTP logs at 50%
+      
+    - name: prod-health
+      condition: $log =~ "/health" || $log =~ "health_check"
+      sample_rate: 0.01  # Sample health checks heavily (1%)
+      
+    - name: prod-metrics
+      condition: $log =~ "metric=" || $log =~ " metrics="
+      sample_rate: 0.1  # Sample metrics at 10%
+
+---
+# Staging namespace sampling configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-staging
+  namespace: monitoring
+data:
+  staging-sampling.conf: |
+    [SAMPLER]
+        Name          sampling
+        Match         kube.staging-*
+        Sample        1 10  # 10% sampling by default in staging
+        MinSamples    5
+        MaxSamples    1000
+        Interval      60
+        Rules         /fluent-bit/etc/sampling-rules/staging-rules.yaml
+
+  staging-rules.yaml: |
+    # Staging-specific sampling rules
+    - name: staging-errors
+      condition: $log_level =~ /error|ERROR|Error|exception|Exception|fail|Fail|fatal|Fatal|critical|Critical/
+      sample_rate: 1.0  # Keep all errors
+      
+    - name: staging-http
+      condition: $log =~ "HTTP/" || $log =~ " http_status="
+      sample_rate: 0.2  # Sample HTTP logs at 20%
+      
+    - name: staging-debug
+      condition: $log_level == "debug" || $log_level == "DEBUG" || $log_level == "Debug"
+      sample_rate: 0.05  # Sample debug logs at 5%
+
+---
+# Development namespace sampling configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-sampling-dev
+  namespace: monitoring
+data:
+  dev-sampling.conf: |
+    [SAMPLER]
+        Name          sampling
+        Match         kube.dev-*
+        Sample        1 20  # 5% sampling by default in dev
+        MinSamples    1
+        MaxSamples    100
+        Interval      300
+        Rules         /fluent-bit/etc/sampling-rules/dev-rules.yaml
+
+  dev-rules.yaml: |
+    # Development-specific sampling rules
+    - name: dev-errors
+      condition: $log_level =~ /error|ERROR|Error|exception|Exception|fail|Fail|fatal|Fatal|critical|Critical/
+      sample_rate: 0.5  # Sample errors at 50% in dev
+      
+    - name: dev-http
+      condition: $log =~ "HTTP/" || $log =~ " http_status="
+      sample_rate: 0.1  # Sample HTTP logs at 10%
+
+---
+# Fluent Bit configuration to include namespace-specific sampling
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-sampling-config
+  namespace: monitoring
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Daemon       Off
+        Log_Level    info
+        Parsers_File parsers.conf
+        HTTP_Server  On
+        HTTP_Listen  0.0.0.0
+        HTTP_Port    2020
+
+    @INCLUDE input-kubernetes.conf
+    @INCLUDE filter-kubernetes.conf
+    @INCLUDE filter-sampling.conf
+    @INCLUDE output-loki.conf
+    @INCLUDE output-s3.conf
+
+  input-kubernetes.conf: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path             /var/log/containers/*.log
+        Parser           docker
+        DB               /var/log/flb_kube.db
+        Mem_Buf_Limit    50MB
+        Skip_Long_Lines  On
+        Refresh_Interval 10
+
+  filter-kubernetes.conf: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Merge_Log           On
+        Keep_Log           Off
+        K8s-Logging.Parser  On
+        K8s-Logging.Exclude On
+
+  filter-sampling.conf: |
+    # Include the appropriate sampling config based on namespace
+    [FILTER]
+        Name          lua
+        Match         kube.*
+        Script        sampling.lua
+        Call          select_sampling_config
+        Time_as_table true
+
+  sampling.lua: |
+    function select_sampling_config(tag, timestamp, record)
+        -- Default to dev sampling for unknown namespaces
+        local namespace = record["kubernetes"]["namespace_name"] or "dev"
+        local config_file = "/fluent-bit/etc/sampling/default-sampling.conf"
+        
+        if namespace == "production" or namespace:find("prod") then
+            config_file = "/fluent-bit/etc/sampling/prod-sampling.conf"
+        elseif namespace == "staging" or namespace:find("stag") then
+            config_file = "/fluent-bit/etc/sampling/staging-sampling.conf"
+        elseif namespace == "development" or namespace:find("dev") then
+            config_file = "/fluent-bit/etc/sampling/dev-sampling.conf"
+        end
+        
+        -- Add sampling config path to record for debugging
+        record["_sampling_config"] = config_file
+        
+        -- Return modified record and tag
+        return 1, timestamp, record
+    end
+
+  output-loki.conf: |
+    [OUTPUT]
+        Name            loki
+        Match           kube.*
+        Host            ${LOKI_SERVICE_HOST}
+        Port            ${LOKI_SERVICE_PORT}
+        Labels          {namespace="$kubernetes['namespace_name']", pod="$kubernetes['pod_name']", container="$kubernetes['container_name']"}
+        LabelKeys       $kubernetes['labels']
+        LineFormat      json
+        DropSingleKey   On
+        RemoveKeys      _sampling_config
+
+  output-s3.conf: |
+    [OUTPUT]
+        Name            s3
+        Match           kube.*
+        bucket          ${S3_BUCKET}
+        region          ${AWS_REGION}
+        total_file_size 100M
+        upload_timeout  1m
+        use_put_object  On
+        s3_key_format   /logs/year=%Y/month=%m/day=%d/%H-%M-%S
+        s3_key_format_tag_delimiters .-
+        store_dir       /var/log/flb_s3
+        s3_key_format   /logs/date=%Y-%m-%d/%H-%M-%S
+
+---
+# Fluent Bit DaemonSet with volume mounts for sampling configs
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: monitoring
+  labels:
+    k8s-app: fluent-bit-logging
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: fluent-bit
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:1.8.12
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: config
+          mountPath: /fluent-bit/etc/
+        - name: sampling-default
+          mountPath: /fluent-bit/etc/sampling/default-sampling.conf
+          subPath: default-sampling.conf
+        - name: sampling-prod
+          mountPath: /fluent-bit/etc/sampling/prod-sampling.conf
+          subPath: prod-sampling.conf
+        - name: sampling-staging
+          mountPath: /fluent-bit/etc/sampling/staging-sampling.conf
+          subPath: staging-sampling.conf
+        - name: sampling-dev
+          mountPath: /fluent-bit/etc/sampling/dev-sampling.conf
+          subPath: dev-sampling.conf
+        - name: sampling-rules
+          mountPath: /fluent-bit/etc/sampling-rules/
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        ports:
+        - containerPort: 2020
+          name: http
+          protocol: TCP
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 2020
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/metrics/prometheus
+            port: 2020
+          initialDelaySeconds: 10
+          periodSeconds: 10
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: config
+        configMap:
+          name: fluent-bit-sampling-config
+      - name: sampling-default
+        configMap:
+          name: log-sampling-defaults
+          items:
+          - key: default-sampling.conf
+            path: default-sampling.conf
+      - name: sampling-prod
+        configMap:
+          name: log-sampling-prod
+          items:
+          - key: prod-sampling.conf
+            path: prod-sampling.conf
+      - name: sampling-staging
+        configMap:
+          name: log-sampling-staging
+          items:
+          - key: staging-sampling.conf
+            path: staging-sampling.conf
+      - name: sampling-dev
+        configMap:
+          name: log-sampling-dev
+          items:
+          - key: dev-sampling.conf
+            path: dev-sampling.conf
+      - name: sampling-rules
+        configMap:
+          name: log-sampling-defaults
+          items:
+          - key: default-rules.yaml
+            path: default-rules.yaml
+          - key: prod-rules.yaml
+            path: prod-rules.yaml
+          - key: staging-rules.yaml
+            path: staging-rules.yaml
+          - key: dev-rules.yaml
+            path: dev-rules.yaml
+---
+# Service account and RBAC for Fluent Bit
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: monitoring
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - pods/logs
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-read
+subjects:
+- kind: ServiceAccount
+  name: fluent-bit
+  namespace: monitoring

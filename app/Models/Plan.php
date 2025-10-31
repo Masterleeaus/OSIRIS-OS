@@ -63,6 +63,7 @@ class Plan extends Model
         'last_date',
         'created_at',
         'updated_at',
+        'affiliate_status',
     ];
 
     private ?array $mergedAiFeatures = null;
@@ -355,6 +356,7 @@ class Plan extends Model
             'user_api'                      => false,
             'plan_allow_seat'               => 0,
             'trial_days'                    => 0,
+            'affiliate_status'              => true,
             'open_ai_items'                 => self::parseAiGenerator(self::openAiGeneratorsValues()),
             'description'                   => '',
             'plan_ai_tools'                 => self::parsePlanAiTools(MenuService::planAiToolsMenu()),

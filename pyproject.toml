@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=42"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "quantum-infra-zero"
+version = "0.1.0"
+description = "Quantum Infrastructure Zero: A serverless, DNS-less network infrastructure"
+authors = [
+    {name = "Dmitry Sorokin", email = "d.sorokin@rechain.network"}
+]
+license = {text = "Apache-2.0"}
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Topic :: System :: Distributed Computing",
+    "Topic :: System :: Networking"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-asyncio>=0.15.0",
+    "black>=21.5b2",
+    "isort>=5.8.0",
+    "mypy>=0.812",
+    "flake8>=3.9.0"
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[project.scripts]
+quantum-node = "quantum_infra_zero.cli:main"

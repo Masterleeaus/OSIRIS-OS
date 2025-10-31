@@ -202,10 +202,19 @@ class MenuService
 
     public function data(): array
     {
-        $admin = Auth::user()?->isAdmin();
-
+        $user = auth()?->user();
+        $admin = $user?->isAdmin();
         $setting = Setting::getCache();
         $settings_two = SettingTwo::getCache();
+
+        $showAffiliate = false;
+        if ($setting->feature_affilates && ($user?->affiliate_status === 1)) {
+            if (setting('affiliate_plan_restriction', '0')) {
+                $showAffiliate = check_plan_affiliate_status($user);
+            } else {
+                $showAffiliate = true;
+            }
+        }
 
         $menu = [
 
@@ -1052,6 +1061,23 @@ class MenuService
                 'active_condition' => null,
                 'show_condition'   => (bool) Helper::setting('feature_ai_code', null, $setting),
             ],
+            'ai_presentation' => [
+                'parent_key'       => null,
+                'key'              => 'ai_presentation',
+                'route'            => 'dashboard.user.ai-presentation.index',
+                'route_slug'       => null,
+                'label'            => 'AI Presentation',
+                'data-name'        => Introduction::AI_PRESENTATION,
+                'icon'             => 'tabler-presentation',
+                'svg'              => null,
+                'order'            => 14,
+                'is_active'        => true,
+                'params'           => [],
+                'type'             => 'item',
+                'extension'        => true,
+                'active_condition' => null,
+                'show_condition'   => MarketplaceHelper::isRegistered('ai-presentation'),
+            ],
             'ai_youtube' => [
                 'parent_key'       => null,
                 'key'              => 'ai_youtube',
@@ -1349,7 +1375,7 @@ class MenuService
                 'type'             => 'item',
                 'extension'        => null,
                 'active_condition' => null,
-                'show_condition'   => Helper::setting('feature_affilates', null, $setting) && (\auth()->user()?->affiliate_status === 1),
+                'show_condition'   => $showAffiliate,
             ],
             'support' => [
                 'parent_key'       => null,
@@ -2792,6 +2818,24 @@ class MenuService
                 'onclick'          => Helper::appIsDemo() ? 'return toastr.info(\'This feature is disabled in Demo version.\')' : '',
                 'badge'            => 'new',
             ],
+            'api_integration_gamma_ai' => [
+                'parent_key'       => 'api_integration',
+                'key'              => 'api_integration_gamma_ai',
+                'route'            => Helper::appIsDemo() ? 'default' : 'dashboard.admin.settings.gamma-ai',
+                'label'            => EngineEnum::GAMMA_AI->label(),
+                'icon'             => null,
+                'svg'              => null,
+                'order'            => 68,
+                'is_active'        => true,
+                'params'           => [],
+                'type'             => 'item',
+                'extension'        => true,
+                'active_condition' => ['dashboard.admin.settings.gamma-ai'],
+                'show_condition'   => MarketplaceHelper::isRegistered('ai-presentation'),
+                'is_admin'         => true,
+                'onclick'          => Helper::appIsDemo() ? 'return toastr.info(\'This feature is disabled in Demo version.\')' : '',
+                'badge'            => 'new',
+            ],
             'api_integration_creatify' => [
                 'parent_key'       => 'api_integration',
                 'key'              => 'api_integration_creatify',
@@ -3810,8 +3854,9 @@ class MenuService
         $keys = [
             'ai_product_shot', 'ai_writer', 'ai_chat_all', 'ai_image_generator', 'ai_video', 'seo_tool_extension', 'ai_voiceover',
             'ai_pdf', 'ai_vision', 'ai_speech_to_text', 'photo_studio_extension', 'ai_rewriter', 'ai_editor',
-            'ai_code_generator', 'ai_youtube', 'ai_chat_image', 'ai_rss', 'ai_voiceover_clone', 'ai_web_chat_extension',
+            'ai_code_generator', 'ai_youtube', 'ai_chat_image', 'ai_rss', 'ai_voiceover_clone', 'ai_web_chat_extension', 'ai_presentation',
             'ai_realtime_voice_chat', 'ai_social_media_extension', 'ai_detector_extension', 'ai_plagiarism_extension', 'ai_article_wizard', 'ai_voice_isolator', 'ext_chat_bot', 'ext_voice_chatbot', 'ext_social_media_dropdown',
+            'ext_ai_music_pro', 'ai_influencer', 'creative_suite', 'url_to_video', 'viral_clips', 'influencer_avatar', 'brand_voice', 'support',
         ];
 
         $data = (new self)->generate();

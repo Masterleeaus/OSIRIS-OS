@@ -1,0 +1,239 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-s3-archive
+  namespace: monitoring
+data:
+  # Main Fluent Bit configuration
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Daemon       Off
+        Log_Level    info
+        Parsers_File parsers.conf
+        HTTP_Server  On
+        HTTP_Listen  0.0.0.0
+        HTTP_Port    2020
+
+    # Include all input and filter configurations
+    @INCLUDE input-kubernetes.conf
+    @INCLUDE filter-kubernetes.conf
+    @INCLUDE output-s3.conf
+
+  # Input configuration for Kubernetes logs
+  input-kubernetes.conf: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path             /var/log/containers/*.log
+        Parser           docker
+        DB               /var/log/flb_kube.db
+        Mem_Buf_Limit    50MB
+        Skip_Long_Lines  On
+        Refresh_Interval 10
+
+  # Filter configuration for Kubernetes metadata
+  filter-kubernetes.conf: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Merge_Log           On
+        Keep_Log            Off
+        K8s-Logging.Parser  On
+        K8s-Logging.Exclude On
+        Labels              On
+        Annotations         Off
+        Use_Kubelet         true
+        Kubelet_Port        10250
+
+    [FILTER]
+        Name                modify
+        Match               *
+        Remove_wildcard     _HOSTNAME
+        Remove_wildcard     _RELEASE
+        Remove_wildcard     _BUILD_ID
+        Remove_wildcard     _SYSTEMD_UNIT
+        Remove_wildcard     _SYSTEMD_SLICE
+        Remove_wildcard     _SYSTEMD_CGROUP
+        Remove_wildcard     _SYSTEMD_INVOCATION_ID
+        Remove_wildcard     _SOURCE_REALTIME_TIMESTAMP
+        Remove_wildcard     _MACHINE_ID
+        Remove_wildcard     _BOOT_ID
+        Remove_wildcard     _TRANSPORT
+        Remove_wildcard     _UID
+        Remove_wildcard     _GID
+        Remove_wildcard     _COMM
+        Remove_wildcard     _EXE
+        Remove_wildcard     _CMDLINE
+        Remove_wildcard     _AUDIT_LOGINUID
+        Remove_wildcard     _SELINUX_CONTEXT
+        Remove_wildcard     _CAP_EFFECTIVE
+        Remove_wildcard     _AUDIT_SESSION
+        Remove_wildcard     _STREAM_ID
+        Remove_wildcard     _LINE_BREAK
+        Remove_wildcard     _SYSTEMD_USER_UNIT
+        Remove_wildcard     _RUNTIME_SCOPE
+        Remove_wildcard     _SYSTEMD_CGROUP_NS
+        Remove_wildcard     _SYSTEMD_SLICE_INIT_SCOPE
+        Remove_wildcard     _SYSTEMD_UNIT_ATTR
+        Remove_wildcard     _SYSTEMD_USER_SLICE
+        Remove_wildcard     _SYSTEMD_INVOCATION_ID
+        Remove_wildcard     _SYSTEMD_USER_UNIT
+        Remove_wildcard     _RUNTIME_SCOPE
+        Remove_wildcard     _SYSTEMD_CGROUP_NS
+        Remove_wildcard     _SYSTEMD_SLICE_INIT_SCOPE
+        Remove_wildcard     _SYSTEMD_UNIT_ATTR
+        Remove_wildcard     _SYSTEMD_USER_SLICE
+
+  # Output configuration for S3
+  output-s3.conf: |
+    [OUTPUT]
+        Name                         s3
+        Match                        kube.*
+        Bucket                       ${S3_BUCKET_NAME}
+        Region                       ${AWS_REGION}
+        Total_File_Size              100M
+        Upload_Timeout               1m
+        Use_Put_Object              On
+        Compression                  gzip
+        Preserve_Data_Ordering       On
+        Store_Dir                    /var/log/flb_s3/
+        S3_Key_Format                /fluent-bit-logs/date=%Y-%m-%d/%H/%M_%S_$UUID.gz
+        S3_Key_Format_Tag_Delimiters .-
+        Retry_Limit                  5
+        Generate_Time_Key            on
+        Time_Key                     time
+        Time_Key_Format              %Y-%m-%dT%H:%M:%S
+        Time_Key_Keep_On             On
+
+  # Custom parsers
+  parsers.conf: |
+    [PARSER]
+        Name        docker
+        Format      json
+        Time_Key    time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+        Time_Keep   On
+
+    [PARSER]
+        Name        syslog
+        Format      regex
+        Regex       ^(?<time>[^ ]* {1,2}[^ ]* [^ ]*) (?<host>[^ ]*) (?<ident>[a-zA-Z0-9_\-\.\/]*)(?:\[(?<pid>[0-9]+)\])?(?:[^\:]*\:)? *(?<message>.*)$
+        Time_Key    time
+        Time_Format %b %d %H:%M:%S
+
+---
+# Service account and role for S3 access
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit-s3
+  namespace: monitoring
+  annotations:
+    eks.amazonaws.com/role-arn: ${S3_IAM_ROLE_ARN}
+---
+# DaemonSet for log archiving
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit-s3
+  namespace: monitoring
+  labels:
+    k8s-app: fluent-bit-s3
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit-s3
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit-s3
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: fluent-bit-s3
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:2.0.9
+        imagePullPolicy: Always
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+          readOnly: true
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: fluent-bit-config
+          mountPath: /fluent-bit/etc/
+        - name: fluent-bit-s3-buffer
+          mountPath: /var/log/flb_s3
+        resources:
+          limits:
+            memory: 200Mi
+          requests:
+            cpu: 100m
+            memory: 100Mi
+        env:
+        - name: AWS_REGION
+          valueFrom:
+            secretKeyRef:
+              name: fluent-bit-s3-secrets
+              key: aws_region
+        - name: S3_BUCKET_NAME
+          valueFrom:
+            secretKeyRef:
+              name: fluent-bit-s3-secrets
+              key: s3_bucket_name
+      terminationGracePeriodSeconds: 10
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: fluent-bit-config
+        configMap:
+          name: fluent-bit-s3-archive
+      - name: fluent-bit-s3-buffer
+        emptyDir: {}
+---
+# Secret for S3 credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: fluent-bit-s3-secrets
+  namespace: monitoring
+type: Opaque
+data:
+  aws_region: ${AWS_REGION_BASE64}
+  s3_bucket_name: ${S3_BUCKET_NAME_BASE64}
+---
+# CronJob for log rotation and cleanup
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: log-archive-cleanup
+  namespace: monitoring
+spec:
+  schedule: "0 0 * * *"  # Run daily at midnight
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: fluent-bit-s3
+          containers:
+          - name: aws-cli
+            image: amazon/aws-cli:2.4.5
+            args:
+            - s3
+            - rm
+            - --recursive
+            - s3://${S3_BUCKET_NAME}/fluent-bit-logs/date=$(date -d "90 days ago" +%Y-%m-%d)/
+            - --region
+            - ${AWS_REGION}
+          restartPolicy: OnFailure

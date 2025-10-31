@@ -1,0 +1,215 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-retention-policies
+  namespace: monitoring
+data:
+  policies.yaml: |
+    # Default retention policy (30 days)
+    - name: default
+      description: Default log retention policy
+      retention_days: 30
+      selector:
+        matchLabels:
+          log-retention: default
+      actions:
+        - type: delete
+          after_days: 30
+
+    # Application logs (90 days)
+    - name: application-logs
+      description: Application container logs
+      retention_days: 90
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: application
+      actions:
+        - type: delete
+          after_days: 90
+
+    # System component logs (30 days)
+    - name: system-logs
+      description: System component logs (kube-system, monitoring, etc.)
+      retention_days: 30
+      selector:
+        matchNamespaces:
+          - kube-system
+          - monitoring
+      actions:
+        - type: delete
+          after_days: 30
+
+    # Audit logs (1 year)
+    - name: audit-logs
+      description: Security and audit logs
+      retention_days: 365
+      selector:
+        matchLabels:
+          log-type: audit
+      actions:
+        - type: transition
+          storage_class: GLACIER
+          after_days: 30
+        - type: delete
+          after_days: 365
+
+    # High-value logs (indefinite retention)
+    - name: compliance-logs
+      description: Compliance and regulatory logs
+      retention_days: 0  # 0 means retain indefinitely
+      selector:
+        matchLabels:
+          log-retention: compliance
+      actions: []  # No action means retain forever
+
+    # Short-term logs (7 days)
+    - name: debug-logs
+      description: Debug and development logs
+      retention_days: 7
+      selector:
+        matchLabels:
+          log-level: debug
+      actions:
+        - type: delete
+          after_days: 7
+
+    # CI/CD logs (14 days)
+    - name: cicd-logs
+      description: CI/CD pipeline logs
+      retention_days: 14
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: cicd
+      actions:
+        - type: delete
+          after_days: 14
+
+    # Database logs (60 days)
+    - name: database-logs
+      description: Database server logs
+      retention_days: 60
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: database
+      actions:
+        - type: delete
+          after_days: 60
+
+    # API Gateway logs (30 days)
+    - name: api-gateway-logs
+      description: API Gateway access and error logs
+      retention_days: 30
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: api-gateway
+      actions:
+        - type: delete
+          after_days: 30
+
+    # Worker logs (14 days)
+    - name: worker-logs
+      description: Background worker and job logs
+      retention_days: 14
+      selector:
+        matchLabels:
+          app.kubernetes.io/component: worker
+      actions:
+        - type: delete
+          after_days: 14
+
+    # Network logs (30 days)
+    - name: network-logs
+      description: Network flow and security logs
+      retention_days: 30
+      selector:
+        matchLabels:
+          log-type: network
+      actions:
+        - type: delete
+          after_days: 30
+
+    # Performance metrics (90 days)
+    - name: metrics-logs
+      description: Application and system metrics
+      retention_days: 90
+      selector:
+        matchLabels:
+          log-type: metrics
+      actions:
+        - type: transition
+          storage_class: STANDARD_IA
+          after_days: 30
+        - type: delete
+          after_days: 90
+
+    # Security logs (1 year)
+    - name: security-logs
+      description: Security-related logs
+      retention_days: 365
+      selector:
+        matchLabels:
+          log-type: security
+      actions:
+        - type: transition
+          storage_class: GLACIER
+          after_days: 30
+        - type: delete
+          after_days: 365
+
+    # Temporary logs (1 day)
+    - name: temp-logs
+      description: Temporary and transient logs
+      retention_days: 1
+      selector:
+        matchLabels:
+          log-retention: temp
+      actions:
+        - type: delete
+          after_days: 1
+
+    # Long-term archive (10 years)
+    - name: archive-logs
+      description: Long-term archive logs
+      retention_days: 3650  # 10 years
+      selector:
+        matchLabels:
+          log-retention: archive
+      actions:
+        - type: transition
+          storage_class: DEEP_ARCHIVE
+          after_days: 30
+        - type: delete
+          after_days: 3650
+
+    # Customer data logs (compliance with data retention laws)
+    - name: customer-data-logs
+      description: Logs containing customer data
+      retention_days: 1095  # 3 years
+      selector:
+        matchLabels:
+          contains-pii: "true"
+      actions:
+        - type: encrypt
+          algorithm: aws:kms
+        - type: transition
+          storage_class: GLACIER
+          after_days: 30
+        - type: delete
+          after_days: 1095
+
+    # Financial transaction logs (7 years)
+    - name: financial-logs
+      description: Financial transaction logs
+      retention_days: 2555  # 7 years
+      selector:
+        matchLabels:
+          log-type: financial
+      actions:
+        - type: transition
+          storage_class: GLACIER
+          after_days: 30
+        - type: lock
+          mode: governance
+          days: 2555
+        - type: delete
+          after_days: 2555

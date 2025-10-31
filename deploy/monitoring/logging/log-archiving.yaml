@@ -1,0 +1,394 @@
+---
+# S3 Output Configuration for Log Archiving
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-s3-output
+  namespace: monitoring
+data:
+  output-s3.conf: |
+    [OUTPUT]
+        Name                s3
+        Match               kube.*
+        Bucket              ${S3_BUCKET}
+        Region              ${AWS_REGION}
+        TotalFileSize       1G
+        UploadTimeout       5m
+        UsePutObject       On
+        S3KeyFormat        /logs/date=%Y-%m-%d/%H-%M-%S
+        S3KeyFormatTagDelimiters .-
+        StoreDir           /var/log/flb_s3
+        RetryLimit         5
+        RetryWait          10s
+        Compression        gzip
+        ContentType        application/x-gzip
+        PreserveData       true
+        StaticKey          logs
+        StorageClass       STANDARD_IA
+        S3KeyFormat        /logs/date=%Y-%m-%d/host=%H/application=%{app.kubernetes.io/name}/%Y%m%d-%H%M%S.gz
+        
+        # Lifecycle rules for different log types
+        LifecycleRules     |
+          [{
+            "ID": "log-retention-policy",
+            "Status": "Enabled",
+            "Filter": {
+              "Prefix": "logs/"
+            },
+            "Transitions": [
+              {
+                "Days": 30,
+                "StorageClass": "STANDARD_IA"
+              },
+              {
+                "Days": 90,
+                "StorageClass": "GLACIER"
+              }
+            ],
+            "Expiration": {
+              "Days": 365
+            }
+          }]
+
+---
+# Fluent Bit Configuration for Log Archiving
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-archive-config
+  namespace: monitoring
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush        5
+        Daemon       Off
+        Log_Level    info
+        Parsers_File parsers.conf
+        HTTP_Server  On
+        HTTP_Listen  0.0.0.0
+        HTTP_Port    2020
+        
+    @INCLUDE input-kubernetes.conf
+    @INCLUDE filter-kubernetes.conf
+    @INCLUDE filter-sampling.conf
+    @INCLUDE output-s3.conf
+
+  input-kubernetes.conf: |
+    [INPUT]
+        Name              tail
+        Tag               kube.*
+        Path             /var/log/containers/*.log
+        Parser           docker
+        DB               /var/log/flb_kube.db
+        Mem_Buf_Limit    50MB
+        Skip_Long_Lines  On
+        Refresh_Interval 10
+
+  filter-kubernetes.conf: |
+    [FILTER]
+        Name                kubernetes
+        Match               kube.*
+        Merge_Log           On
+        Keep_Log           Off
+        K8s-Logging.Parser  On
+        K8s-Logging.Exclude On
+
+  filter-sampling.conf: |
+    [FILTER]
+        Name          lua
+        Match         kube.*
+        Script        sampling.lua
+        Call          select_sampling_config
+        Time_as_table true
+
+  sampling.lua: |
+    function select_sampling_config(tag, timestamp, record)
+        -- Default to dev sampling for unknown namespaces
+        local namespace = record["kubernetes"]["namespace_name"] or "dev"
+        local config_file = "/fluent-bit/etc/sampling/default-sampling.conf"
+        
+        if namespace == "production" or namespace:find("prod") then
+            config_file = "/fluent-bit/etc/sampling/prod-sampling.conf"
+        elseif namespace == "staging" or namespace:find("stag") then
+            config_file = "/fluent-bit/etc/sampling/staging-sampling.conf"
+        elseif namespace == "development" or namespace:find("dev") then
+            config_file = "/fluent-bit/etc/sampling/dev-sampling.conf"
+        end
+        
+        -- Add sampling config path to record for debugging
+        record["_sampling_config"] = config_file
+        
+        -- Return modified record and tag
+        return 1, timestamp, record
+    end
+
+---
+# Fluent Bit DaemonSet for Log Archiving
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit-archive
+  namespace: monitoring
+  labels:
+    k8s-app: fluent-bit-archive
+    version: v1
+    kubernetes.io/cluster-service: "true"
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluent-bit-archive
+  template:
+    metadata:
+      labels:
+        k8s-app: fluent-bit-archive
+        version: v1
+        kubernetes.io/cluster-service: "true"
+    spec:
+      serviceAccountName: fluent-bit-archive
+      containers:
+      - name: fluent-bit
+        image: fluent/fluent-bit:1.8.12
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 2020
+          name: http
+          protocol: TCP
+        volumeMounts:
+        - name: varlog
+          mountPath: /var/log
+        - name: varlibdockercontainers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: config
+          mountPath: /fluent-bit/etc/
+        - name: s3-credentials
+          mountPath: /aws-credentials
+          readOnly: true
+        - name: s3-storage
+          mountPath: /var/log/flb_s3
+        resources:
+          limits:
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 200Mi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/v1/metrics/prometheus
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+      volumes:
+      - name: varlog
+        hostPath:
+          path: /var/log
+      - name: varlibdockercontainers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: config
+        configMap:
+          name: fluent-bit-archive-config
+      - name: s3-credentials
+        secret:
+          secretName: aws-credentials
+      - name: s3-storage
+        hostPath:
+          path: /var/log/fluent-bit-s3
+          type: DirectoryOrCreate
+
+---
+# Service Account and RBAC for Fluent Bit Archiving
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit-archive
+  namespace: monitoring
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit-archive-read
+rules:
+- apiGroups: [""]
+  resources:
+  - namespaces
+  - pods
+  - pods/logs
+  verbs: ["get", "list", "watch"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit-archive-read
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit-archive-read
+subjects:
+- kind: ServiceAccount
+  name: fluent-bit-archive
+  namespace: monitoring
+
+---
+# S3 Bucket Configuration and Lifecycle
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: s3-bucket-config
+  namespace: monitoring
+data:
+  bucket-policy.json: |
+    {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Sid": "AllowLogging",
+          "Effect": "Allow",
+          "Principal": {
+            "AWS": "arn:aws:iam::${ACCOUNT_ID}:role/fluent-bit-role"
+          },
+          "Action": [
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:ListBucket"
+          ],
+          "Resource": [
+            "arn:aws:s3:::${S3_BUCKET}",
+            "arn:aws:s3:::${S3_BUCKET}/*"
+          ]
+        }
+      ]
+    }
+
+  lifecycle-policy.json: |
+    {
+      "Rules": [
+        {
+          "ID": "log-retention-policy",
+          "Status": "Enabled",
+          "Filter": {
+            "Prefix": "logs/"
+          },
+          "Transitions": [
+            {
+              "Days": 30,
+              "StorageClass": "STANDARD_IA"
+            },
+            {
+              "Days": 90,
+              "StorageClass": "GLACIER"
+            }
+          ],
+          "Expiration": {
+            "Days": 365
+          }
+        }
+      ]
+    }
+
+---
+# Log Rotation and Cleanup CronJob
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: log-rotation-cleanup
+  namespace: monitoring
+spec:
+  schedule: "0 0 * * *"  # Run daily at midnight
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: fluent-bit-archive
+          containers:
+          - name: log-rotation
+            image: amazon/aws-cli:2.4.5
+            command:
+            - /bin/sh
+            - -c
+            - |
+              #!/bin/sh
+              set -e
+              
+              # Rotate logs older than 1 day
+              find /var/log/fluent-bit-s3 -type f -mtime +1 -name "*.log" -exec gzip {} \;
+              
+              # Clean up old rotated logs (keep last 30 days)
+              find /var/log/fluent-bit-s3 -type f -name "*.gz" -mtime +30 -delete
+              
+              # Clean up empty directories
+              find /var/log/fluent-bit-s3 -type d -empty -delete
+              
+              # Apply S3 lifecycle policy
+              aws s3api put-bucket-lifecycle-configuration \
+                --bucket ${S3_BUCKET} \
+                --lifecycle-configuration file:///etc/aws-config/lifecycle-policy.json
+            volumeMounts:
+            - name: s3-storage
+              mountPath: /var/log/fluent-bit-s3
+            - name: aws-config
+              mountPath: /etc/aws-config
+              readOnly: true
+            env:
+            - name: S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: fluent-bit-env
+                  key: S3_BUCKET
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-credentials
+                  key: aws-secret-access-key
+            - name: AWS_DEFAULT_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: fluent-bit-env
+                  key: AWS_REGION
+          restartPolicy: OnFailure
+          volumes:
+          - name: s3-storage
+            hostPath:
+              path: /var/log/fluent-bit-s3
+          - name: aws-config
+            configMap:
+              name: s3-bucket-config
+
+---
+# Environment Configuration
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit-env
+  namespace: monitoring
+data:
+  S3_BUCKET: "your-log-bucket-name"
+  AWS_REGION: "us-west-2"
+  LOG_RETENTION_DAYS: "365"
+  LOG_ARCHIVE_FORMAT: "%Y/%m/%d/%H-%M-%S"
+
+---
+# AWS Credentials Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aws-credentials
+  namespace: monitoring
+type: Opaque
+data:
+  aws-access-key-id: ""  # Base64 encoded AWS_ACCESS_KEY_ID
+  aws-secret-access-key: ""  # Base64 encoded AWS_SECRET_ACCESS_KEY

@@ -416,6 +416,45 @@ class Helper
         return response()->json([], 200);
     }
 
+    public static function checkDemoSecondDailyLimit($incomingSeconds = 0, $lockKey = 'default_second_lock_key'): JsonResponse
+    {
+        if (! self::appIsDemo()) {
+            return response()->json([], 200);
+        }
+
+        $msg = __('You have reached the maximum allowed AI generation time for today (30 seconds). Please try again tomorrow.');
+
+        // Prevent concurrent requests from interfering
+        if (! Cache::lock($lockKey, 10)->get()) {
+            return response()->json(['message' => 'Request in progress. Please try again later.'], 409);
+        }
+
+        $clientIp = self::getRequestIp();
+        $cacheKey = "demo_ai_usage_seconds_{$clientIp}";
+        $maxSecondsPerDay = 30;
+
+        // Get how many seconds this IP has used today
+        $usedSeconds = Cache::get($cacheKey, 0);
+
+        // If adding the new request would exceed limit
+        if (($usedSeconds + $incomingSeconds) > $maxSecondsPerDay) {
+            Cache::lock($lockKey)->release();
+
+            return response()->json([
+                'status'  => 'error',
+                'message' => $msg,
+            ], 429);
+        }
+
+        // Release the lock (no update yet — we only update after successful generation)
+        Cache::lock($lockKey)->release();
+
+        return response()->json([
+            'status'            => 'ok',
+            'remaining_seconds' => $maxSecondsPerDay - $usedSeconds,
+        ], 200);
+    }
+
     public static function checkRemainingImages($usr = null)
     {
         $user = $usr ?? auth()->user();

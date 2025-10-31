@@ -97,6 +97,7 @@ class MarketplaceServiceProvider extends ServiceProvider
         'ai-chat-pro-file-chat'  => \App\Extensions\AIChatProFileChat\System\AIChatProFileChatServiceProvider::class,
         'ai-music-pro'           => \App\Extensions\AiMusicPro\System\AiMusicProServiceProvider::class,
         'see-dream-v4'           => \App\Extensions\SeeDreamV4\System\SeeDreamV4ServiceProvider::class,
+        'ai-presentation'        => \App\Extensions\AiPresentation\System\AiPresentationServiceProvider::class,
     ];
 
     public function register(): void

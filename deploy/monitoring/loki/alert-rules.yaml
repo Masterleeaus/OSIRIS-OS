@@ -1,0 +1,218 @@
+groups:
+- name: quantum-log-alerts
+  rules:
+  # Alert for high error rate
+  - alert: HighErrorRate
+    expr: |
+      sum(rate({app=~"quantum-.+"} |~ "(?i)error|exception|fatal|panic" [5m])) by (namespace, pod, container)
+      /
+      sum(rate({app=~"quantum-.+"} [5m])) by (namespace, pod, container) > 0.05
+    for: 10m
+    labels:
+      severity: warning
+      team: sre
+      category: logs
+    annotations:
+      summary: "High error rate in {{ $labels.pod }}/{{ $labels.container }}"
+      description: |
+        Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has error rate of {{ $value | humanizePercentage }}
+        over the last 5 minutes.
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/high-error-rate.md"
+
+  # Alert for critical errors
+  - alert: CriticalErrorsDetected
+    expr: |
+      sum(count_over_time({app=~"quantum-.+"} |~ "(?i)fatal|panic|out of memory" [5m])) by (namespace, pod, container) > 0
+    for: 5m
+    labels:
+      severity: critical
+      team: sre
+      category: logs
+    annotations:
+      summary: "Critical errors detected in {{ $labels.pod }}/{{ $labels.container }}"
+      description: |
+        Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has reported critical errors.
+        Last error: {{ $value }}
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/critical-errors.md"
+
+  # Alert for log volume anomalies
+  - alert: LogVolumeAnomaly
+    expr: |
+      (
+        sum(rate({app=~"quantum-.+"} [5m])) by (namespace, pod, container)
+        >
+        (
+          avg(avg_over_time({app=~"quantum-.+"} | json | __error__!="JSONParserErr" | unwrap count_over_time({app=~"quantum-.+"} [5m]) [1d:5m])) by (namespace, pod, container)
+          * 3
+        )
+      )
+      and
+      (
+        sum(rate({app=~"quantum-.+"} [5m])) by (namespace, pod, container) > 100
+      )
+    for: 5m
+    labels:
+      severity: warning
+      team: sre
+      category: logs
+    annotations:
+      summary: "Unusual log volume from {{ $labels.pod }}/{{ $labels.container }}"
+      description: |
+        Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is generating unusual log volume.
+        Current rate: {{ $value }} logs/second (3x above normal)
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/log-volume-anomaly.md"
+
+  # Alert for specific error patterns
+  - alert: DatabaseConnectionErrors
+    expr: |
+      count_over_time(
+        {app=~"quantum-.+"} 
+        |~ "(?i)connection.*refused|timeout|connection.*reset|connection.*closed"
+        |~ "(?i)postgres|mysql|mongodb|redis"
+        [5m]
+      ) > 5
+    for: 5m
+    labels:
+      severity: critical
+      team: database
+      category: logs
+    annotations:
+      summary: "Database connection errors in {{ $labels.pod }}"
+      description: |
+        Multiple database connection errors detected in pod {{ $labels.pod }}.
+        Check database connectivity and credentials.
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/database-errors.md"
+
+  # Alert for authentication failures
+  - alert: AuthenticationFailures
+    expr: |
+      count_over_time(
+        {app=~"quantum-.+"} 
+        |~ "(?i)authentication failed|invalid credentials|unauthorized|forbidden"
+        [15m]
+      ) > 10
+    for: 10m
+    labels:
+      severity: warning
+      team: security
+      category: logs
+    annotations:
+      summary: "Authentication failures detected"
+      description: |
+        Multiple authentication failures detected. This might indicate a security issue.
+        Number of failures: {{ $value }}
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/auth-failures.md"
+
+  # Alert for pod restarts
+  - alert: PodRestartLoop
+    expr: |
+      sum(increase(kube_pod_container_status_restarts_total[10m])) by (namespace, pod, container) > 3
+    for: 5m
+    labels:
+      severity: critical
+      team: sre
+      category: kubernetes
+    annotations:
+      summary: "Pod {{ $labels.pod }} is restarting frequently"
+      description: |
+        Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has restarted {{ $value }} times in the last 10 minutes.
+        Check the pod logs for errors.
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/pod-restarts.md"
+
+  # Alert for high latency
+  - alert: HighRequestLatency
+    expr: |
+      (
+        sum(rate({app=~"quantum-.+"} |~ "request_duration_seconds_bucket" | logfmt | unwrap request_duration_seconds [5m])) by (le, pod, route, method)
+        and
+        sum(rate({app=~"quantum-.+"} |~ "request_duration_seconds_count" | logfmt [5m])) by (pod, route, method) > 0
+      )
+      > 1
+    for: 10m
+    labels:
+      severity: warning
+      team: performance
+      category: metrics
+    annotations:
+      summary: "High request latency in {{ $labels.pod }}"
+      description: |
+        High request latency detected in pod {{ $labels.pod }} for route {{ $labels.route }} ({{ $labels.method }}).
+        Current p99 latency: {{ $value }}s
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/high-latency.md"
+
+  # Alert for resource constraints
+  - alert: ContainerOOMKilled
+    expr: |
+      sum(rate(container_memory_working_set_bytes{container!="POD", container!=""}[5m])) by (namespace, pod, container)
+      /
+      sum(container_spec_memory_limit_bytes{container!="POD", container!=""}) by (namespace, pod, container)
+      > 0.9
+    for: 5m
+    labels:
+      severity: critical
+      team: infrastructure
+      category: resources
+    annotations:
+      summary: "Container {{ $labels.container }} in pod {{ $labels.pod }} is approaching memory limit"
+      description: |
+        Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its memory limit.
+        It might get OOMKilled if usage continues to increase.
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/resource-constraints.md"
+
+  # Alert for disk space
+  - alert: NodeDiskSpaceLow
+    expr: |
+      (
+        node_filesystem_avail_bytes{device=~"/dev/.*", fstype!="tmpfs", fstype!="fuse.lxcfs", fstype!="fuse.gvfsd-fuse"}
+        /
+        node_filesystem_size_bytes{device=~"/dev/.*", fstype!="tmpfs", fstype!="fuse.lxcfs", fstype!="fuse.gvfsd-fuse"}
+      ) < 0.1
+    for: 15m
+    labels:
+      severity: critical
+      team: infrastructure
+      category: resources
+    annotations:
+      summary: "Node {{ $labels.instance }} disk space is critically low"
+      description: |
+        Node {{ $labels.instance }} has only {{ $value | humanizePercentage }} disk space remaining on {{ $labels.mountpoint }}.
+        Free space: {{ $value | humanize1024 }} bytes
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/disk-space.md"
+
+  # Alert for high CPU usage
+  - alert: HighCPUUsage
+    expr: |
+      sum(rate(container_cpu_usage_seconds_total{container!="POD", container!=""}[5m])) by (namespace, pod, container)
+      /
+      sum(container_spec_cpu_quota{container!="POD", container!=""} / container_spec_cpu_period{container!="POD", container!=""}) by (namespace, pod, container)
+      > 0.8
+    for: 10m
+    labels:
+      severity: warning
+      team: performance
+      category: resources
+    annotations:
+      summary: "High CPU usage in container {{ $labels.container }}"
+      description: |
+        Container {{ $labels.container }} in pod {{ $labels.pod }} is using {{ $value | humanizePercentage }} of its CPU limit.
+        This might cause performance issues.
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/high-cpu-usage.md"
+
+  # Alert for network errors
+  - alert: NetworkErrors
+    expr: |
+      sum(rate(container_network_receive_errors_total[5m])) by (pod, namespace)
+      +
+      sum(rate(container_network_transmit_errors_total[5m])) by (pod, namespace)
+      > 10
+    for: 5m
+    labels:
+      severity: warning
+      team: network
+      category: network
+    annotations:
+      summary: "Network errors detected for pod {{ $labels.pod }}"
+      description: |
+        Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is experiencing network errors.
+        Total errors in last 5 minutes: {{ $value }}
+      runbook_url: "https://github.com/REChain-Network-Solutions/AIPlatform/runbooks/network-errors.md"

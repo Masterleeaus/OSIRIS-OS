@@ -1160,6 +1160,10 @@ class UserController extends Controller
 
     public function documentsBulkDelete(Request $request)
     {
+        if (Helper::appIsDemo()) {
+            return response()->json(['success' => false, 'message' => __('This action is disabled in the demo mode.')], 403);
+        }
+
         $userId = auth()->id();
 
         try {
@@ -1349,9 +1353,13 @@ class UserController extends Controller
     // Affiliates
     public function affiliatesList()
     {
-        abort_if(Helper::setting('feature_affilates') == 0, 404);
-        $onetimeCommission = setting('onetime_commission', 0);
         $user = Auth::user();
+        abort_if(Helper::setting('feature_affilates') == 0, 404);
+        if (setting('affiliate_plan_restriction', '0')) {
+            abort_if(! check_plan_affiliate_status($user), 404);
+        }
+
+        $onetimeCommission = setting('onetime_commission', 0);
         $list = $user?->affiliates;
         $list2 = $user?->withdrawals;
         $totalEarnings = 0;

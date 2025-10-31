@@ -16,7 +16,7 @@ class CrontabCheckCommand extends Command
 
         $currentTime = now()->toDateTimeString();
 
-        Log::info("Cron job is running at: {$currentTime}");
+        // Log::info("Cron job is running at: {$currentTime}");
 
         cache()->put('crontab_check', now());
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AccessType;
 use App\Helpers\Classes\Helper;
 use App\Models\OpenAIGenerator;
 use Closure;
@@ -58,6 +59,8 @@ class CheckTemplateTypeAndPlan
             'dashboard.user.social-media.platforms'      => 'ext_social_media_dropdown',
             'dashboard.user.social-media.post.index'     => 'ext_social_media_dropdown',
             'dashboard.user.social-media.calendar'       => 'ext_social_media_dropdown',
+            'dashboard.user.ai-music-pro.index'          => 'ext_ai_music_pro',
+            'dashboard.user.ai-presentation.index'       => 'ai_presentation',
         ];
         if (array_key_exists($request->route()?->getName(), $routesDoesNotHaveAnySlug)) {
             $slug = $routesDoesNotHaveAnySlug[$request->route()?->getName()];
@@ -74,10 +77,17 @@ class CheckTemplateTypeAndPlan
                 return true;
             }
 
-            return $openAi?->getAttribute('premium') !== 1;
+            if (! $openAi) {
+                return false;
+            }
+
+            $isPremium = $openAi->getAttribute('premium');
+            $isAccessTypePremium = $openAi->getAttribute('access_type') === AccessType::PREMIUM->value;
+
+            return ! ($isPremium === 1 || $isAccessTypePremium);
         }
         // now even if slug exist in route, openai table does not contain all slugs
-        $slugsNotInOpenAiGenerator = ['ai_chat_all', 'ai_editor', 'ai_writer', 'ai_social_media_extension', 'ext_chat_bot', 'brand_voice', 'photo_studio_extension'];
+        $slugsNotInOpenAiGenerator = ['ai_chat_all', 'ai_editor', 'ai_writer', 'ai_social_media_extension', 'ext_chat_bot', 'brand_voice', 'photo_studio_extension', 'ext_ai_music_pro', 'ai_presentation'];
         // if openai record exist or slug is in the list of slugs that are not in openai generator
         if ($openAi || in_array($slug, $slugsNotInOpenAiGenerator, true)) {
             $setting = $this->settingSlug($slug);

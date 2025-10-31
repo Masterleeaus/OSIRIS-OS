@@ -216,13 +216,6 @@ class AIChatController extends Controller
             })
             ->get();
 
-        if ($slug === 'ai_realtime_voice_chat' && Helper::appIsDemo()) {
-            foreach ($list as $chat) {
-                $chat->messages()->delete();
-                $chat->delete();
-            }
-        }
-
         $elevenlabsAgentId = null;
         if ($slug === 'ai_realtime_voice_chat' && MarketplaceHelper::isRegistered('elevenlabs-voice-chat')) {
             $elevenlabsAgentId = app(ElevenLabsVoiceChatService::class)?->fetchVoiceChatbot()?->agent_id;

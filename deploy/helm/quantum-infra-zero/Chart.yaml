@@ -1,0 +1,18 @@
+apiVersion: v2
+name: quantum-infra-zero
+description: Quantum Infrastructure Zero - A serverless, DNS-less network infrastructure
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - quantum
+  - decentralized
+  - blockchain
+  - ai
+  - web3
+  - web4
+  - web5
+maintainers:
+  - name: REChain Network Solutions
+    url: https://rechain.network
+    email: info@rechain.network

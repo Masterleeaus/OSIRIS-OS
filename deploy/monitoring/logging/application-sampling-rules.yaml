@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-sampling-rules
+  namespace: monitoring
+data:
+  # Quantum Node Sampling Rules
+  quantum-node-rules.yaml: |
+    - name: quantum-node-errors
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "quantum-node" && 
+                ($log =~ /error|ERROR|Error|exception|Exception|fail|Fail|fatal|Fatal|critical|Critical/)
+      sample_rate: 1.0
+      min_sample_rate: 0.5
+      max_sample_rate: 1.0
+      
+    - name: quantum-node-metrics
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "quantum-node" && 
+                ($log =~ /metric=| metrics=|gauge=|counter=|histogram=/)
+      sample_rate: 0.2
+      min_sample_rate: 0.1
+      max_sample_rate: 0.5
+      
+    - name: quantum-node-debug
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "quantum-node" && 
+                ($log_level == "debug" || $log_level == "DEBUG" || $log_level == "Debug")
+      sample_rate: 0.05
+      min_sample_rate: 0.01
+      max_sample_rate: 0.1
+
+  # API Gateway Sampling Rules
+  api-gateway-rules.yaml: |
+    - name: api-gateway-errors
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "api-gateway" && 
+                ($http_status >= 400 || $log =~ /error|ERROR|Error/)
+      sample_rate: 1.0
+      
+    - name: api-gateway-requests
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "api-gateway" && 
+                $http_status < 400
+      sample_rate: 0.3
+      min_sample_rate: 0.1
+      max_sample_rate: 0.5
+      adjustment:
+        - condition: $response_time > 1000  # ms
+          action: increase
+          factor: 1.5
+          max: 1.0
+        - condition: $response_time < 100  # ms
+          action: decrease
+          factor: 0.8
+          min: 0.1
+
+  # Database Proxy Sampling Rules
+  db-proxy-rules.yaml: |
+    - name: db-proxy-queries
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "db-proxy"
+      sample_rate: 0.1
+      min_sample_rate: 0.05
+      max_sample_rate: 0.3
+      adjustment:
+        - condition: $query_time > 1.0  # seconds
+          action: increase
+          factor: 2.0
+          max: 0.5
+
+  # Worker Service Sampling Rules
+  worker-service-rules.yaml: |
+    - name: worker-job-started
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "worker-service" && 
+                $log =~ /Starting job|Job started/
+      sample_rate: 0.1
+      
+    - name: worker-job-completed
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "worker-service" && 
+                $log =~ /Job completed|Processing finished/
+      sample_rate: 1.0  # Always log job completions
+      
+    - name: worker-errors
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "worker-service" && 
+                ($log =~ /error|ERROR|Error|exception|Exception|fail|Fail|fatal|Fatal|critical|Critical/)
+      sample_rate: 1.0
+      min_sample_rate: 0.5
+
+  # Frontend Service Sampling Rules
+  frontend-rules.yaml: |
+    - name: frontend-errors
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "frontend" && 
+                ($http_status >= 400 || $log =~ /error|ERROR|Error/)
+      sample_rate: 1.0
+      
+    - name: frontend-page-views
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "frontend" && 
+                $log =~ /PageView|RouteChange/
+      sample_rate: 0.05
+      min_sample_rate: 0.01
+      max_sample_rate: 0.1
+
+  # Authentication Service Sampling Rules
+  auth-service-rules.yaml: |
+    - name: auth-failures
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "auth-service" && 
+                ($log =~ /authentication failed|invalid credentials|login failed/i)
+      sample_rate: 1.0  # Always log auth failures
+      
+    - name: auth-success
+      condition: $kubernetes['labels']['app.kubernetes.io/name'] == "auth-service" && 
+                $log =~ /authentication successful|login successful/i
+      sample_rate: 0.2  # Sample successful auths at 20%

@@ -388,6 +388,7 @@ function generalSettingsSave() {
     formData.append('pusher_app_cluster', $("#pusher_app_cluster").val());
 
 	formData.append('onetime_commission', $("#onetime_commission").is(":checked") ? 1 : 0);
+	formData.append('affiliate_plan_restriction', $("#affiliate_plan_restriction").is(":checked") ? 1 : 0);
 
     if ($('#limit').prop('checked')) {
         formData.append('limit', 1);

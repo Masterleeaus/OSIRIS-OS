@@ -7,6 +7,7 @@ use App\Domains\Entity\Contracts\Calculate\WithCharsInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImagesInterface;
 use App\Domains\Entity\Contracts\Calculate\WithImageToVideoInterface;
 use App\Domains\Entity\Contracts\Calculate\WithMinuteInterface;
+use App\Domains\Entity\Contracts\Calculate\WithPresentationInterface;
 use App\Domains\Entity\Contracts\Calculate\WithSecondInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToSpeechInterface;
 use App\Domains\Entity\Contracts\Calculate\WithTextToVideoInterface;
@@ -78,6 +79,7 @@ test('calculate credit with input for all models', function ($model) {
         $driver instanceof WithCharsInterface        => $driver->input('fo'),
         $driver instanceof WithMinuteInterface       => $driver->inputMinute(2),
         $driver instanceof WithSecondInterface       => $driver->inputSecond(2),
+        $driver instanceof WithPresentationInterface => $driver->inputPresentation(2),
         default                                      => $driver->input('foo bar'),
     };
 
