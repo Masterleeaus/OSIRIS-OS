@@ -1,0 +1,21 @@
+replicaCount: 2
+
+image:
+  repository: rechain/aiplatform
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  hosts:
+    - host: aiplatform.local
+      paths: ["/"]
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

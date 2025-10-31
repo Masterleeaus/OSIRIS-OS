@@ -1,0 +1,25 @@
+# Example: Text Generation Pipeline
+id: text-gen-basic
+name: Basic Text Generation
+description: >
+  Simple pipeline that sends a prompt to a model provider and stores the result.
+inputs:
+  - name: prompt
+    type: string
+    required: true
+steps:
+  - id: step-1
+    type: model_call
+    provider: openai
+    model: gpt-4o
+    input:
+      prompt: "{{ inputs.prompt }}"
+      max_tokens: 512
+    outputs:
+      - name: generated_text
+outputs:
+  - name: generated_text
+    from: step-1.generated_text
+metadata:
+  timeout: 120
+  retry: 1
