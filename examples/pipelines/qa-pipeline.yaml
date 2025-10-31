@@ -1,0 +1,33 @@
+# Example: Question Answering Pipeline
+id: qa-retrieval
+name: Retrieval-Augmented QA
+description: >
+  Perform a document retrieval from vectorstore and run a QA model over top-k contexts.
+inputs:
+  - name: question
+    type: string
+    required: true
+steps:
+  - id: retrieve
+    type: retrieval
+    vectorstore: pinecone
+    query: "{{ inputs.question }}"
+    top_k: 5
+    outputs:
+      - name: contexts
+  - id: answer
+    type: model_call
+    provider: local
+    model: rechain-qa-1
+    input:
+      prompt: |
+        Use the following contexts to answer the question:
+        {{ steps.retrieve.contexts }}
+        Question: {{ inputs.question }}
+    outputs:
+      - name: answer
+outputs:
+  - name: answer
+    from: steps.answer.answer
+metadata:
+  timeout: 300

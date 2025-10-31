@@ -1,21 +1,19 @@
 # Security Policy
 
-## Supported Versions
-
-Use this section to tell people about which versions of your project are
-currently being supported with security updates.
-
-| Version | Supported          |
-| ------- | ------------------ |
-| 5.1.x   | :white_check_mark: |
-| 5.0.x   | :x:                |
-| 4.0.x   | :white_check_mark: |
-| < 4.0   | :x:                |
-
 ## Reporting a Vulnerability
+If you discover a security issue, please **do not create a public GitHub issue**. Instead:
+- Email: security@rechain.network (PGP-encrypted if possible)
+- Include: affected component, steps to reproduce, impact, PoC if available.
 
-Use this section to tell people how to report a vulnerability.
+We will acknowledge within 48 hours and provide a timeline.
 
-Tell them where to go, how often they can expect to get an update on a
-reported vulnerability, what to expect if the vulnerability is accepted or
-declined, etc.
+## Supported Versions
+We maintain security fixes for the latest two minor releases. For older releases contact maintainers.
+
+## Disclosure Policy
+We coordinate responsible disclosure. Public disclosure will only happen after a fix or agreed timeline.
+
+## Known hardening
+- Use of signed release artifacts
+- Regular dependency scans (GHAS / Dependabot)
+- Container image scanning in CI

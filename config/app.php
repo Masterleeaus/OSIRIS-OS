@@ -196,6 +196,7 @@ return [
         /*
          * Package Service Providers...
          */
+        App\Providers\TonIntegrationServiceProvider::class,
 
         /*
          * Application Service Providers...

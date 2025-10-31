@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "aiplatform.fullname" . }}
+  labels:
+    app: {{ include "aiplatform.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "aiplatform.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "aiplatform.name" . }}
+    spec:
+      containers:
+        - name: aiplatform
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+          env:
+            - name: APP_ENV
+              value: "production"
+          resources: {{ toYaml .Values.resources | nindent 14 }}
